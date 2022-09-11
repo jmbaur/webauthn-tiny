@@ -1,0 +1,18 @@
+[package]
+name = "webauthn-server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.64"
+argon2 = "0.4.1"
+axum = "0.5.16"
+clap = { version = "3.2.20", features = ["derive"] }
+rand_core = { version = "0.6.3", features = ["std"] }
+rust-embed = "6.4.0"
+serde_json = "1.0.85"
+serde_yaml = "0.9.11"
+tokio = { version = "1.21.0", features = ["full"] }
+webauthn-rs = "0.4.6"
