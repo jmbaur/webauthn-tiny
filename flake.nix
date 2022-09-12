@@ -22,7 +22,7 @@
           openssl
           (writeShellScriptBin "gendata" ''
             mkdir -p data
-            openssl rand -hex 12 > data/salt
+            openssl rand -hex 16 > data/salt
             pwdhash=$(echo bar | ${libargon2}/bin/argon2 $(cat data/salt) -e)
             cat > data/passwords.yaml <<EOF
             foo: $pwdhash

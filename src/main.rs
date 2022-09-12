@@ -1,6 +1,6 @@
-use argon2::PasswordHash;
+use argon2::{Argon2, PasswordHash};
 use axum::{http::StatusCode, response::IntoResponse, routing::get, Extension};
-use clap::Parser;
+use clap::{App, Arg, Parser, SubCommand};
 use std::{collections::HashMap, fs, sync::Arc};
 
 /// Simple webauthn server
@@ -34,24 +34,33 @@ struct AppState {
 }
 
 async fn auth_handler(Extension(state): Extension<Arc<AppState>>) -> impl IntoResponse {
-    let _password_hash = match state.passwords.get("foo") {
+    let password_hash = match state.passwords.get("foo") {
         Some(p) => p,
         None => return (StatusCode::UNAUTHORIZED, ""),
     };
 
-    let parsed_hash = match PasswordHash::new(&_password_hash) {
+    let parsed_hash = match PasswordHash::new(&password_hash) {
         Ok(p) => p,
         Err(_) => return (StatusCode::UNAUTHORIZED, ""),
     };
 
-    eprintln!("{}", parsed_hash);
-    // Argon2::default().verify_password("bar", &parsed_hash);
+    let a = Argon2::default();
+    let res = parsed_hash.verify_password(&[&Argon2::default()], "bar");
+    eprintln!("{:#?}", res);
 
     (StatusCode::OK, "")
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let app = App::new("webauthn-server").subcommand(
+        SubCommand::with_name("add").about("Add a new user").arg(
+            Arg::with_name("username")
+                .help("The username for a user")
+                .index(1),
+        ),
+    );
+
     let _args = Args::parse();
 
     let password_file_contents = fs::read_to_string(_args.password_file)?;
