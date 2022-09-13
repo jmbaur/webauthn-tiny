@@ -88,17 +88,14 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
 
     let maybe_user = app_state.users.get_mut(username);
     if maybe_user.is_none() {
-        let user = app_state
-            .users
-            .insert(
-                username.to_string(),
-                UserState {
-                    id: Uuid::new_v4(),
-                    hash: hash.to_string(),
-                },
-            )
-            .expect("failed to insert user");
-        user_id = user.id;
+        user_id = Uuid::new_v4();
+        app_state.users.insert(
+            username.to_string(),
+            UserState {
+                id: user_id,
+                hash: hash.to_string(),
+            },
+        );
     } else {
         let user = maybe_user.expect("checked is not none");
         user.hash = hash.to_string();
@@ -106,22 +103,21 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     }
 
     let rp_id = &app_state.id;
-    let rp_origin = Url::parse(app_state.origin.as_str()).expect("Invalid URL");
-    let webauthn = WebauthnBuilder::new(rp_id.as_str(), &rp_origin)
-        .expect("Invalid configuration")
+    let rp_origin = Url::parse(app_state.origin.as_str())?;
+    let webauthn = WebauthnBuilder::new(rp_id.as_str(), &rp_origin)?
         .allow_subdomains(false)
-        .build()
-        .expect("Invalid configuration");
+        .build()?;
 
-    let (chal, _) = webauthn
-        .start_passkey_registration(user_id, username.as_str(), username.as_str(), None)
-        .expect("Failed to start registration");
+    let (chal, _) =
+        webauthn.start_passkey_registration(user_id, username.as_str(), username.as_str(), None)?;
 
     let mut webauthn = WebauthnAuthenticator::new(u2fhid::U2FHid::default());
     let _credential = match webauthn.do_registration(rp_origin, chal) {
         Ok(c) => c,
-        Err(_) => todo!(),
+        Err(_) => todo!(), // TODO(jared): non-standard error?
     };
+
+    eprintln!("{:#?}", _credential);
 
     app_state.persist(password_file)
 }
