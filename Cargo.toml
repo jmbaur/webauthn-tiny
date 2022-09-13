@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.64"
 argon2 = "0.4.1"
 axum = "0.5.16"
+axum-auth = "0.3.0"
 clap = { version = "3.2.20", features = ["derive"] }
 rand_core = { version = "0.6.3", features = ["std"] }
 rust-embed = "6.4.0"
