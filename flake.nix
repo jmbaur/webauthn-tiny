@@ -1,12 +1,12 @@
 {
-  description = "webauthn-server";
+  description = "webauthn-tiny";
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
-      webauthn-server = prev.callPackage ./. { };
+      webauthn-tiny = prev.callPackage ./. { };
     };
   } // flake-utils.lib.eachDefaultSystem (system:
     let
@@ -15,7 +15,7 @@
       };
     in
     {
-      packages.default = pkgs.webauthn-server;
+      packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [
           libargon2
@@ -29,7 +29,7 @@
             EOF
           '')
         ];
-        inherit (pkgs.webauthn-server)
+        inherit (pkgs.webauthn-tiny)
           PKG_CONFIG_PATH
           nativeBuildInputs;
       };

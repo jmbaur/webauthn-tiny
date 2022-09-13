@@ -1,4 +1,4 @@
-# webauthn-server
+# webauthn-tiny
 
 The goal of this project is to provide a mechanism for securely accessing
 private resources over the internet in the simplest possible manner. The
