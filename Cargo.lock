@@ -1457,6 +1457,7 @@ dependencies = [
  "clap",
  "rand_core",
  "rust-embed",
+ "serde",
  "serde_json",
  "serde_yaml",
  "tokio",
