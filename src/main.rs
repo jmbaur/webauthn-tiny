@@ -7,6 +7,7 @@ use axum_auth::AuthBasic;
 use clap::{arg, Command};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io::ErrorKind, sync::Arc};
+use webauthn_authenticator_rs::{u2fhid, WebauthnAuthenticator};
 use webauthn_rs::{
     prelude::{Url, Uuid},
     WebauthnBuilder,
@@ -17,15 +18,51 @@ struct UserState {
     id: Uuid,
     hash: String,
 }
+
 type UserMap = HashMap<String, UserState>;
 
-struct AppState {
-    users: UserMap,
-    origin: String,
-    id: String,
+trait PersistentUserDB {
+    fn persist(self: &Self, path: &str) -> anyhow::Result<()>;
 }
 
-fn adduser(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
+struct AppState {
+    id: String,
+    origin: String,
+    users: UserMap,
+}
+
+impl AppState {
+    fn load(id: String, origin: String, path: &str) -> anyhow::Result<Self> {
+        let password_file_contents = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => match e.kind() {
+                ErrorKind::NotFound => String::new(),
+                e => return Err(anyhow::anyhow!(e)),
+            },
+        };
+        match serde_yaml::from_str::<UserMap>(&password_file_contents) {
+            Ok(users) => Ok(Self { id, origin, users }),
+            Err(e) => Err(anyhow::anyhow!(e)),
+        }
+    }
+}
+
+impl PersistentUserDB for AppState {
+    fn persist(self: &Self, path: &str) -> anyhow::Result<()> {
+        let updated_password_file_contents = serde_yaml::to_string(&self.users)?;
+        match fs::write(path, updated_password_file_contents) {
+            Err(e) => Err(anyhow::anyhow!(e)),
+            _ => Ok(()),
+        }
+    }
+}
+
+fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
+    let id = sub_m.get_one::<String>("id").expect("`id` is required");
+    let origin = sub_m
+        .get_one::<String>("origin")
+        .expect("`origin` is required");
+
     let username = sub_m
         .get_one::<String>("username")
         .expect("`username` is required");
@@ -36,14 +73,8 @@ fn adduser(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     let password_file = sub_m
         .get_one::<String>("passwordfile")
         .expect("`passwordfile` is required");
-    let password_file_contents = match fs::read_to_string(password_file) {
-        Ok(c) => c,
-        Err(e) => match e.kind() {
-            ErrorKind::NotFound => String::new(),
-            e => return Err(anyhow::anyhow!(e)),
-        },
-    };
-    let mut users = serde_yaml::from_str::<UserMap>(&password_file_contents)?;
+
+    let mut app_state = AppState::load(id.to_string(), origin.to_string(), password_file)?;
 
     let argon = Argon2::default();
     let salt = SaltString::generate(&mut OsRng);
@@ -53,23 +84,46 @@ fn adduser(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         Err(e) => return Err(anyhow::anyhow!(e)),
     };
 
-    if let Some(user) = users.get_mut(username) {
-        user.hash = hash.to_string();
+    let user_id: Uuid;
+
+    let maybe_user = app_state.users.get_mut(username);
+    if maybe_user.is_none() {
+        let user = app_state
+            .users
+            .insert(
+                username.to_string(),
+                UserState {
+                    id: Uuid::new_v4(),
+                    hash: hash.to_string(),
+                },
+            )
+            .expect("failed to insert user");
+        user_id = user.id;
     } else {
-        users.insert(
-            username.to_string(),
-            UserState {
-                id: Uuid::new_v4(),
-                hash: hash.to_string(),
-            },
-        );
+        let user = maybe_user.expect("checked is not none");
+        user.hash = hash.to_string();
+        user_id = user.id;
     }
 
-    let updated_password_file_contents = serde_yaml::to_string(&users)?;
+    let rp_id = &app_state.id;
+    let rp_origin = Url::parse(app_state.origin.as_str()).expect("Invalid URL");
+    let webauthn = WebauthnBuilder::new(rp_id.as_str(), &rp_origin)
+        .expect("Invalid configuration")
+        .allow_subdomains(false)
+        .build()
+        .expect("Invalid configuration");
 
-    fs::write(password_file, updated_password_file_contents)?;
+    let (chal, _) = webauthn
+        .start_passkey_registration(user_id, username.as_str(), username.as_str(), None)
+        .expect("Failed to start registration");
 
-    Ok(())
+    let mut webauthn = WebauthnAuthenticator::new(u2fhid::U2FHid::default());
+    let _credential = match webauthn.do_registration(rp_origin, chal) {
+        Ok(c) => c,
+        Err(_) => todo!(),
+    };
+
+    app_state.persist(password_file)
 }
 
 fn passwords_match(password: Option<String>, hash: String) -> bool {
@@ -90,6 +144,7 @@ fn passwords_match(password: Option<String>, hash: String) -> bool {
         )
         .is_ok()
 }
+
 async fn register_handler(
     AuthBasic((username, password)): AuthBasic,
     Extension(state): Extension<Arc<AppState>>,
@@ -179,8 +234,10 @@ async fn main() -> anyhow::Result<()> {
     let cmd = Command::new("webauthn-tiny")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(Command::new("adduser").args(&[
+        .subcommand(Command::new("register").args(&[
             arg!(-f --passwordfile <FILE> "The path to a password file"),
+            arg!(-i --id <ID> "ID to use for webauthn"),
+            arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
             arg!(-p --password <PASSWORD> "The password for the user"),
             arg!(-u --username <NAME> "The name for the user"),
         ]))
@@ -193,7 +250,7 @@ async fn main() -> anyhow::Result<()> {
         .get_matches();
 
     match cmd.subcommand() {
-        Some(("adduser", sub_m)) => adduser(sub_m),
+        Some(("register", sub_m)) => register(sub_m),
         Some(("serve", sub_m)) => serve(sub_m).await,
         _ => unreachable!(),
     }

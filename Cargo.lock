@@ -81,6 +81,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "authenticator-ctap2-2021"
+version = "0.3.2-dev.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d06c690e5e2800f70c0cf8773a9fe7680d66e719dae9b4cabedd13ef4885d056"
+dependencies = [
+ "base64",
+ "bitflags",
+ "cfg-if",
+ "core-foundation",
+ "devd-rs",
+ "libc",
+ "libudev",
+ "log",
+ "memoffset",
+ "nom",
+ "openssl",
+ "openssl-sys",
+ "rand",
+ "runloop",
+ "serde",
+ "serde_bytes",
+ "serde_cbor",
+ "serde_json",
+ "sha2 0.10.5",
+ "winapi",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -275,6 +303,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "core-foundation"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "194a7a9e6de53fa55116934067c844d9d749312f75c6f6d0980e8c252f8c2146"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation-sys"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -311,6 +355,16 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "rusticata-macros",
+]
+
+[[package]]
+name = "devd-rs"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c315b8fe6f26aea3091b030c28aabbdf491376ae39033978f06e468ab42360c"
+dependencies = [
+ "libc",
+ "nom",
 ]
 
 [[package]]
@@ -557,6 +611,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
 
 [[package]]
+name = "libudev"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea626d3bdf40a1c5aee3bcd4f40826970cae8d80a8fec934c82a63840094dcfe"
+dependencies = [
+ "libc",
+ "libudev-sys",
+]
+
+[[package]]
+name = "libudev-sys"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c8469b4a23b962c1396b9b451dda50ef5b283e8dd309d69033475fa9b334324"
+dependencies = [
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -586,6 +660,15 @@ name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+
+[[package]]
+name = "memoffset"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
+dependencies = [
+ "autocfg",
+]
 
 [[package]]
 name = "mime"
@@ -902,6 +985,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpassword"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffc936cf8a7ea60c58f030fd36a612a48f440610214dc54bc36431f9ea0c3efb"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "runloop"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d79b4b604167921892e84afbbaad9d5ad74e091bf6c511d9dbfb0593f09fabd"
+
+[[package]]
 name = "rust-embed"
 version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -931,7 +1030,7 @@ version = "7.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "756feca3afcbb1487a1d01f4ecd94cf8ec98ea074c55a69e7136d29fb6166029"
 dependencies = [
- "sha2",
+ "sha2 0.9.9",
  "walkdir",
 ]
 
@@ -972,6 +1071,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f747710de3dcd43b88c9168773254e809d8ddbdf9653b84e2554ab219f17860"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfc50e8183eeeb6178dcb167ae34a8051d63535023ae38b5d8d12beae193d37b"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -1042,6 +1150,17 @@ dependencies = [
  "cpufeatures",
  "digest 0.9.0",
  "opaque-debug",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf9db03534dff993187064c4e0c05a5708d2a9728ace9a8959b77bedf415dac5"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.10.3",
 ]
 
 [[package]]
@@ -1397,6 +1516,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
+name = "webauthn-authenticator-rs"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f0a0f2b3f25205903b27ecea9012dcff4ad272ee792a41ab46dae6bbabefd4d"
+dependencies = [
+ "authenticator-ctap2-2021",
+ "base64urlsafedata",
+ "nom",
+ "openssl",
+ "rpassword",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "tracing",
+ "url",
+ "webauthn-rs-proto",
+]
+
+[[package]]
 name = "webauthn-rs"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1461,6 +1599,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tokio",
+ "webauthn-authenticator-rs",
  "webauthn-rs",
 ]
 
