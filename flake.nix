@@ -19,7 +19,6 @@
         src = ./.;
         hooks = {
           cargo-check.enable = true;
-          clippy.enable = true;
           nixpkgs-fmt.enable = true;
           rustfmt.enable = true;
         };

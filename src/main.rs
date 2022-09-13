@@ -7,26 +7,6 @@ use axum_auth::AuthBasic;
 use clap::{arg, Command};
 use std::{collections::HashMap, fs, io::ErrorKind, sync::Arc};
 
-// let rp_id = "localhost";
-// let rp_origin = Url::parse("http://localhost:8080").expect("Invalid URL");
-// let webauthn = WebauthnBuilder::new(rp_id, &rp_origin)
-//     .expect("Invalid configuration")
-//     .allow_subdomains(false)
-//     .build()
-//     .expect("Invalid configuration");
-//
-// let uuid = Uuid::new_v4();
-// let username = "jared";
-// let userdisplayname = "Jared Baur";
-// let (chal, _) = webauthn
-//     .start_passkey_registration(uuid, username, userdisplayname, None)
-//     .expect("Failed to start registration");
-//
-// let chal_json = serde_json::to_string(&chal).expect("Failed to serialize public key challenge");
-
-// let parsed_hash = PasswordHash::new(&password_hash)?;
-// assert!(Argon2::default().verify_password(password, &parsed_hash).is_ok());
-
 type UserPass = HashMap<String, String>;
 
 struct AppState {
@@ -74,6 +54,30 @@ fn adduser(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn register_handler() -> impl IntoResponse {
+    // let rp_id = "localhost";
+    // let rp_origin = Url::parse("http://localhost:8080").expect("Invalid URL");
+    // let webauthn = WebauthnBuilder::new(rp_id, &rp_origin)
+    //     .expect("Invalid configuration")
+    //     .allow_subdomains(false)
+    //     .build()
+    //     .expect("Invalid configuration");
+    //
+    // let uuid = Uuid::new_v4();
+    // let username = "jared";
+    // let userdisplayname = "Jared Baur";
+    // let (chal, _) = webauthn
+    //     .start_passkey_registration(uuid, username, userdisplayname, None)
+    //     .expect("Failed to start registration");
+    //
+    // let chal_json = serde_json::to_string(&chal).expect("Failed to serialize public key challenge");
+
+    // let parsed_hash = PasswordHash::new(&password_hash)?;
+    // assert!(Argon2::default().verify_password(password, &parsed_hash).is_ok());
+
+    StatusCode::OK
+}
+
 async fn auth_handler(
     AuthBasic((username, password)): AuthBasic,
     Extension(state): Extension<Arc<AppState>>,
@@ -92,7 +96,8 @@ async fn auth_handler(
         Err(_) => return StatusCode::UNAUTHORIZED,
     };
 
-    if !Argon2::default()
+    let argon = Argon2::default();
+    if !argon
         .verify_password(
             password.expect("already checked is not none").as_bytes(),
             &parsed_hash,
@@ -122,6 +127,7 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
 
     let app = axum::Router::new()
         .route("/auth", get(auth_handler))
+        .route("/register", get(register_handler))
         .layer(Extension(app_state));
 
     eprintln!("listening on {}", sock_addr);
