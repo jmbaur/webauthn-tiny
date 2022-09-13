@@ -79,17 +79,17 @@ async fn auth_handler(
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
     if password.is_none() {
-        return (StatusCode::UNAUTHORIZED, "");
+        return StatusCode::UNAUTHORIZED;
     }
 
     let password_hash = match state.passwords.get(&username) {
         Some(p) => p,
-        None => return (StatusCode::UNAUTHORIZED, ""),
+        None => return StatusCode::UNAUTHORIZED,
     };
 
     let parsed_hash = match PasswordHash::new(&password_hash) {
         Ok(p) => p,
-        Err(_) => return (StatusCode::UNAUTHORIZED, ""),
+        Err(_) => return StatusCode::UNAUTHORIZED,
     };
 
     if !Argon2::default()
@@ -99,10 +99,10 @@ async fn auth_handler(
         )
         .is_ok()
     {
-        return (StatusCode::UNAUTHORIZED, "");
+        return StatusCode::UNAUTHORIZED;
     }
 
-    (StatusCode::OK, "")
+    StatusCode::OK
 }
 
 async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
