@@ -187,8 +187,8 @@ async fn main() -> anyhow::Result<()> {
         .subcommand(Command::new("serve").args(&[
             arg!(-a --address [ADDRESS] "Socket address to bind to"),
             arg!(-f --passwordfile <FILE> "The path to a password file"),
-            arg!(-i --id [ID] "ID to use for webauthn"),
-            arg!(-o --origin [ORIGIN] "Origin to use for webauthn"),
+            arg!(-i --id <ID> "ID to use for webauthn"),
+            arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
         ]))
         .get_matches();
 
