@@ -230,19 +230,27 @@ async fn main() -> anyhow::Result<()> {
     let cmd = Command::new("webauthn-tiny")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(Command::new("register").args(&[
-            arg!(-f --passwordfile <FILE> "The path to a password file"),
-            arg!(-i --id <ID> "ID to use for webauthn"),
-            arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
-            arg!(-p --password <PASSWORD> "The password for the user"),
-            arg!(-u --username <NAME> "The name for the user"),
-        ]))
-        .subcommand(Command::new("serve").args(&[
-            arg!(-a --address [ADDRESS] "Socket address to bind to"),
-            arg!(-f --passwordfile <FILE> "The path to a password file"),
-            arg!(-i --id <ID> "ID to use for webauthn"),
-            arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
-        ]))
+        .subcommand(
+            Command::new("register")
+                .args(&[
+                    arg!(-f --passwordfile <FILE> "The path to a password file"),
+                    arg!(-i --id <ID> "ID to use for webauthn"),
+                    arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
+                    arg!(-p --password <PASSWORD> "The password for the user"),
+                    arg!(-u --username <NAME> "The name for the user"),
+                ])
+                .about("Register a new user"),
+        )
+        .subcommand(
+            Command::new("serve")
+                .args(&[
+                    arg!(-a --address [ADDRESS] "Socket address to bind to"),
+                    arg!(-f --passwordfile <FILE> "The path to a password file"),
+                    arg!(-i --id <ID> "ID to use for webauthn"),
+                    arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
+                ])
+                .about("Start the HTTP server"),
+        )
         .get_matches();
 
     match cmd.subcommand() {
