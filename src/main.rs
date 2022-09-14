@@ -22,7 +22,7 @@ struct UserState {
 type UserMap = HashMap<String, UserState>;
 
 trait PersistentUserDB {
-    fn persist(self: &Self, path: &str) -> anyhow::Result<()>;
+    fn persist(&self, path: &str) -> anyhow::Result<()>;
 }
 
 struct AppState {
@@ -48,7 +48,7 @@ impl AppState {
 }
 
 impl PersistentUserDB for AppState {
-    fn persist(self: &Self, path: &str) -> anyhow::Result<()> {
+    fn persist(&self, path: &str) -> anyhow::Result<()> {
         let updated_password_file_contents = serde_yaml::to_string(&self.users)?;
         match fs::write(path, updated_password_file_contents) {
             Err(e) => Err(anyhow::anyhow!(e)),
@@ -86,8 +86,10 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
 
     let user_id: Uuid;
 
-    let maybe_user = app_state.users.get_mut(username);
-    if maybe_user.is_none() {
+    if let Some(user) = app_state.users.get_mut(username) {
+        user.hash = hash.to_string();
+        user_id = user.id;
+    } else {
         user_id = Uuid::new_v4();
         app_state.users.insert(
             username.to_string(),
@@ -96,10 +98,6 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
                 hash: hash.to_string(),
             },
         );
-    } else {
-        let user = maybe_user.expect("checked is not none");
-        user.hash = hash.to_string();
-        user_id = user.id;
     }
 
     let rp_id = &app_state.id;

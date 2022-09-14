@@ -4,6 +4,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
+    pre-commit.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
@@ -19,6 +20,7 @@
         src = ./.;
         hooks = {
           cargo-check.enable = true;
+          clippy.enable = true;
           nixpkgs-fmt.enable = true;
           rustfmt.enable = true;
         };
@@ -27,6 +29,7 @@
     {
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
+        buildInputs = [ pkgs.clippy ];
         inherit (pre-commit-hooks) shellHook;
         inherit (pkgs.webauthn-tiny)
           PKG_CONFIG_PATH
