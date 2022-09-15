@@ -19,3 +19,4 @@ serde_yaml = "0.9.11"
 tokio = { version = "1.21.0", features = ["full"] }
 webauthn-authenticator-rs = { version = "0.4.5", features = ["u2fhid"] }
 webauthn-rs = "0.4.6"
+webauthn-rs-proto = "0.4.6"

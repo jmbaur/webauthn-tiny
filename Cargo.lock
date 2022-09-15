@@ -1601,6 +1601,7 @@ dependencies = [
  "tokio",
  "webauthn-authenticator-rs",
  "webauthn-rs",
+ "webauthn-rs-proto",
 ]
 
 [[package]]

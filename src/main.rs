@@ -9,14 +9,16 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, io::ErrorKind, sync::Arc};
 use webauthn_authenticator_rs::{u2fhid, WebauthnAuthenticator};
 use webauthn_rs::{
-    prelude::{Url, Uuid},
+    prelude::{Base64UrlSafeData, Url, Uuid},
     WebauthnBuilder,
 };
+use webauthn_rs_proto::{CredentialID, RegisterPublicKeyCredential};
 
 #[derive(Deserialize, Serialize)]
 struct UserState {
     id: Uuid,
     hash: String,
+    credentials: Vec<RegisterPublicKeyCredential>,
 }
 
 type UserMap = HashMap<String, UserState>;
@@ -84,40 +86,70 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         Err(e) => return Err(anyhow::anyhow!(e)),
     };
 
-    let user_id: Uuid;
-
     if let Some(user) = app_state.users.get_mut(username) {
         user.hash = hash.to_string();
-        user_id = user.id;
-    } else {
-        user_id = Uuid::new_v4();
-        app_state.users.insert(
+
+        let existing_credentials: Vec<Base64UrlSafeData> = user
+            .credentials
+            .iter()
+            .map(|c| Base64UrlSafeData::from(c.id.as_bytes().to_vec()))
+            .collect();
+
+        match add_credential(
+            app_state.id.clone(),
+            app_state.origin.clone(),
+            user.id,
             username.to_string(),
-            UserState {
-                id: user_id,
-                hash: hash.to_string(),
-            },
-        );
+            Some(existing_credentials),
+        ) {
+            Ok(c) => user.credentials.push(c),
+            Err(e) => return Err(anyhow::anyhow!(e)),
+        }
+    } else {
+        let mut new_user = UserState {
+            id: Uuid::new_v4(),
+            hash: hash.to_string(),
+            credentials: vec![],
+        };
+        match add_credential(
+            app_state.id.clone(),
+            app_state.origin.clone(),
+            new_user.id,
+            username.to_string(),
+            None,
+        ) {
+            Ok(c) => new_user.credentials.push(c),
+            Err(e) => return Err(anyhow::anyhow!(e)),
+        }
+        app_state.users.insert(username.to_string(), new_user);
     }
 
-    let rp_id = &app_state.id;
-    let rp_origin = Url::parse(app_state.origin.as_str())?;
+    app_state.persist(password_file)
+}
+
+fn add_credential(
+    id: String,
+    origin: String,
+    user_id: Uuid,
+    username: String,
+    exclude_credentials: Option<Vec<CredentialID>>,
+) -> anyhow::Result<RegisterPublicKeyCredential> {
+    let rp_id = &id;
+    let rp_origin = Url::parse(&origin)?;
     let webauthn = WebauthnBuilder::new(rp_id.as_str(), &rp_origin)?
         .allow_subdomains(false)
         .build()?;
 
     let (chal, _) =
-        webauthn.start_passkey_registration(user_id, username.as_str(), username.as_str(), None)?;
+        webauthn.start_passkey_registration(user_id, &username, &username, exclude_credentials)?;
 
     let mut webauthn = WebauthnAuthenticator::new(u2fhid::U2FHid::default());
-    let _credential = match webauthn.do_registration(rp_origin, chal) {
+    let credential = match webauthn.do_registration(rp_origin, chal) {
         Ok(c) => c,
         Err(_) => todo!(), // TODO(jared): non-standard error?
     };
 
-    eprintln!("{:#?}", _credential);
-
-    app_state.persist(password_file)
+    Ok(credential)
 }
 
 fn passwords_match(password: Option<String>, hash: String) -> bool {
@@ -139,49 +171,20 @@ fn passwords_match(password: Option<String>, hash: String) -> bool {
         .is_ok()
 }
 
-async fn register_handler(
-    AuthBasic((username, password)): AuthBasic,
-    Extension(state): Extension<Arc<AppState>>,
-) -> impl IntoResponse {
-    let maybe_user = state.users.get(&username);
-    if maybe_user.is_none() {
-        return (StatusCode::UNAUTHORIZED, String::from("{}"));
-    }
-    let user = maybe_user.expect("already checked is not none");
-
-    if !passwords_match(password, user.hash.to_owned()) {
-        return (StatusCode::UNAUTHORIZED, String::from("{}"));
-    }
-
-    let rp_id = &state.id;
-    let rp_origin = Url::parse(state.origin.as_str()).expect("Invalid URL");
-    let webauthn = WebauthnBuilder::new(rp_id.as_str(), &rp_origin)
-        .expect("Invalid configuration")
-        .allow_subdomains(false)
-        .build()
-        .expect("Invalid configuration");
-
-    let (chal, _) = webauthn
-        .start_passkey_registration(user.id, username.as_str(), username.as_str(), None)
-        .expect("Failed to start registration");
-
-    (
-        StatusCode::OK,
-        serde_json::to_string(&chal).expect("Failed to serialize public key challenge"),
-    )
-}
-
 async fn auth_handler(
     AuthBasic((username, password)): AuthBasic,
     Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    match state.users.get(&username) {
+    let _user = match state.users.get(&username) {
         Some(user) => match passwords_match(password, user.hash.to_owned()) {
-            true => StatusCode::OK,
-            false => StatusCode::UNAUTHORIZED,
+            true => user,
+            false => return StatusCode::UNAUTHORIZED,
         },
-        None => StatusCode::UNAUTHORIZED,
-    }
+        None => return StatusCode::UNAUTHORIZED,
+    };
+
+    // TODO(jared): perform webauthn authentication
+    StatusCode::OK
 }
 
 async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
@@ -212,7 +215,6 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
 
     let app = axum::Router::new()
         .route("/auth", get(auth_handler))
-        .route("/register", get(register_handler))
         .layer(Extension(app_state));
 
     eprintln!("listening on {}", sock_addr);
