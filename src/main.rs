@@ -3,8 +3,10 @@ use argon2::{
     Argon2,
 };
 use axum::{
-    extract::{self, Path},
-    http::StatusCode,
+    async_trait,
+    extract::{self, FromRequest, Path, RequestParts},
+    http::{header, HeaderMap},
+    http::{header::AUTHORIZATION, StatusCode},
     response::IntoResponse,
     routing::get,
     Extension,
@@ -215,8 +217,32 @@ fn passwords_match(password: Option<String>, hash: String) -> bool {
         .is_ok()
 }
 
+pub struct MyBasicAuth(AuthBasic);
+
+#[async_trait]
+impl<B: Send> FromRequest<B> for MyBasicAuth {
+    type Rejection = (HeaderMap, StatusCode);
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        if req.headers().get(AUTHORIZATION).is_some() {
+            if let Ok(auth_basic) = AuthBasic::from_request(req).await {
+                Ok(Self(auth_basic))
+            } else {
+                Err((HeaderMap::new(), StatusCode::INTERNAL_SERVER_ERROR))
+            }
+        } else {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                header::WWW_AUTHENTICATE,
+                "Basic".parse().expect("failed to parse header value"),
+            );
+            Err((headers, StatusCode::UNAUTHORIZED))
+        }
+    }
+}
+
 async fn start_handler(
-    AuthBasic((username, password)): AuthBasic,
+    MyBasicAuth(AuthBasic((username, password))): MyBasicAuth,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {

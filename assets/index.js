@@ -1,12 +1,4 @@
-let username = "user";
-let password = "password";
-
-let headers = new Headers();
-headers.append("Authorization", "Basic " + btoa(username + ":" + password));
-
-fetch("/register", {
-  headers: headers,
-}).then((data) => data.json()).then((data) => {
+fetch("/start").then((data) => data.json()).then((data) => {
   const publicKey = {
     ...data.publicKey,
     user: {
