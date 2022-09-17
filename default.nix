@@ -10,7 +10,6 @@ rustPlatform.buildRustPackage {
   version = "0.1.0";
   src = ./.;
   PKG_CONFIG_PATH = "${openssl.dev}/lib/pkgconfig:${systemd.dev}/lib/pkgconfig";
-  # buildInputs = [ clippy ];
   nativeBuildInputs = [ clippy pkg-config ];
   checkPhase = ''
     cargo clippy

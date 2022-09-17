@@ -220,7 +220,13 @@ async fn start_handler(
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {
-    let mut state = shared_state.write().unwrap();
+    let mut state = match shared_state.write() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, String::from("{}"));
+        }
+    };
     let user = match state.users.get(&username) {
         Some(user) => match passwords_match(password, user.hash.to_owned()) {
             true => user,
@@ -256,9 +262,18 @@ async fn end_handler(
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {
-    let state = shared_state.read().unwrap();
+    let state = match shared_state.read() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    };
 
-    let passkey = state.in_progress_authentications.get(&username).unwrap();
+    let passkey = match state.in_progress_authentications.get(&username) {
+        Some(p) => p,
+        None => return StatusCode::NO_CONTENT,
+    };
 
     let auth_result = match webauthn.finish_passkey_authentication(&payload.0, passkey) {
         Ok(a) => a,
