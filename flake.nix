@@ -29,10 +29,10 @@
     {
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
-        buildInputs = [ pkgs.clippy ];
         inherit (pre-commit-hooks) shellHook;
         inherit (pkgs.webauthn-tiny)
           PKG_CONFIG_PATH
+          buildInputs
           nativeBuildInputs;
       };
     });

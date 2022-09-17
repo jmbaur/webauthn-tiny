@@ -2,6 +2,7 @@
 , pkg-config
 , openssl
 , systemd
+, clippy
 , ...
 }:
 rustPlatform.buildRustPackage {
@@ -9,6 +10,10 @@ rustPlatform.buildRustPackage {
   version = "0.1.0";
   src = ./.;
   PKG_CONFIG_PATH = "${openssl.dev}/lib/pkgconfig:${systemd.dev}/lib/pkgconfig";
-  nativeBuildInputs = [ pkg-config ];
+  # buildInputs = [ clippy ];
+  nativeBuildInputs = [ clippy pkg-config ];
+  checkPhase = ''
+    cargo clippy
+  '';
   cargoLock.lockFile = ./Cargo.lock;
 }
