@@ -2,7 +2,13 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use axum::{http::StatusCode, response::IntoResponse, routing::get, Extension};
+use axum::{
+    extract::{self, Path},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Extension,
+};
 use axum_auth::AuthBasic;
 use clap::{arg, Command};
 use serde::{Deserialize, Serialize};
@@ -17,7 +23,7 @@ use webauthn_rs::{
     prelude::{Passkey, PasskeyAuthentication, Url, Uuid},
     Webauthn, WebauthnBuilder,
 };
-use webauthn_rs_proto::CredentialID;
+use webauthn_rs_proto::{CredentialID, PublicKeyCredential};
 
 #[derive(Deserialize, Serialize)]
 struct UserState {
@@ -245,10 +251,26 @@ async fn start_handler(
 }
 
 async fn end_handler(
-    _state: Extension<SharedAppState>,
-    _webauthn: Extension<Arc<Webauthn>>,
+    Path(username): Path<String>,
+    payload: extract::Json<PublicKeyCredential>,
+    shared_state: Extension<SharedAppState>,
+    webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {
-    StatusCode::UNAUTHORIZED
+    let state = shared_state.read().unwrap();
+
+    let passkey = state.in_progress_authentications.get(&username).unwrap();
+
+    let auth_result = match webauthn.finish_passkey_authentication(&payload.0, passkey) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{e}");
+            return StatusCode::UNAUTHORIZED;
+        }
+    };
+
+    eprintln!("{:#?}", auth_result);
+
+    StatusCode::OK
 }
 
 async fn auth_handler() -> impl IntoResponse {
@@ -291,7 +313,7 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     let app = axum::Router::new()
         .route("/auth", get(auth_handler))
         .route("/start", get(start_handler))
-        .route("/end", get(end_handler))
+        .route("/end/:username", get(end_handler))
         .layer(Extension(Arc::new(RwLock::new(app_state))))
         .layer(Extension(Arc::new(webauthn)));
 
