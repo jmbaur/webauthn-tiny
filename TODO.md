@@ -1,3 +1,5 @@
+- slit out user:password file and webauthn credentials file
+
 - registering the same security key mutliple times is allowed for some reason
   - credential ID seems to not be excluding pre-existing registered security
     keys?

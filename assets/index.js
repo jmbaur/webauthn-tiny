@@ -1,26 +1,42 @@
-fetch("/start").then((data) => data.json()).then((data) => {
-  console.log(data);
-  // const challenge = {
-  //   ...data.publicKey,
-  //   user: {
-  //     ...data.publicKey.user,
-  //     id: Uint8Array.from(data.publicKey.user.id, (c) =>
-  //       c.charCodeAt(0)).buffer,
-  //   },
-  //   challenge: Uint8Array.from(
-  //     data.publicKey.challenge,
-  //     (c) => c.charCodeAt(0),
-  //   ).buffer,
-  // };
-  //
-  // navigator.credentials.create({ publicKey })
-  //   .then((newCredentialInfo) => {
-  //     const response = newCredentialInfo.response;
-  //     const clientExtensionsResults = newCredentialInfo
-  //       .getClientExtensionResults();
-  //
-  //     fetch();
-  //   }).catch((err) => {
-  //     console.error("ERROR", err);
-  //   });
+function toBuffer(data) {
+  return Uint8Array.from(data, (c) => c.charCodeAt(0));
+}
+
+fetch("/authenticate/start").then((data) => data.json()).then(
+  ({ publicKey }) => {
+    publicKey.challenge = toBuffer(publicKey.challenge);
+    publicKey.allowCredentials = publicKey.allowCredentials.map((cred) => ({
+      ...cred,
+      id: toBuffer(cred.id),
+    }));
+
+    if (!window.PublicKeyCredential) {
+      alert("Error: this browser does not support WebAuthn");
+      return;
+    }
+
+    navigator.credentials.get({ publicKey }).then((data) => {
+      console.table(data);
+      fetch(`/authenticate/end/${username}`, { method: "POST", body: data })
+        .then(console.table).catch(console.error);
+    }).catch(console.error);
+  },
+).catch((err) => {
+  console.error(err);
+  fetch("/register/start").then((data) => data.json()).then(({ publicKey }) => {
+    publicKey.challenge = toBuffer(publicKey.challenge);
+    publicKey.user.id = toBuffer(publicKey.user.id);
+
+    if (!window.PublicKeyCredential) {
+      alert("Error: this browser does not support WebAuthn");
+      return;
+    }
+
+    navigator.credentials.create({ publicKey })
+      .then((data) => {
+        console.table(data);
+        fetch(`/register/end/${username}`, { method: "POST", body: data })
+          .then(console.table).catch(console.error);
+      }).catch(console.error);
+  });
 });
