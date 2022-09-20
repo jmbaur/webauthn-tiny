@@ -338,14 +338,6 @@ async fn assets_handler(Path(raw_path): Path<String>) -> impl IntoResponse {
         .expect("failed to build response")
 }
 
-async fn index_handler() -> impl IntoResponse {
-    assets_handler(Path("index.html".to_string())).await
-}
-
-async fn favicon_handler() -> impl IntoResponse {
-    assets_handler(Path("favicon.ico".to_string())).await
-}
-
 fn build_webauthn(id: &str, origin: &Url) -> anyhow::Result<Webauthn> {
     match WebauthnBuilder::new(id, origin)?
         .allow_subdomains(false)
@@ -384,8 +376,14 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         .route("/start", get(start_handler))
         .route("/end/:username", get(end_handler))
         .route("/assets/*path", get(assets_handler))
-        .route("/favicon.ico", get(favicon_handler))
-        .route("/", get(index_handler))
+        .route(
+            "/favicon.ico",
+            get(|| async { assets_handler(Path("favicon.ico".to_string())).await }),
+        )
+        .route(
+            "/",
+            get(|| async { assets_handler(Path("index.html".to_string())).await }),
+        )
         .layer(Extension(Arc::new(RwLock::new(app_state))))
         .layer(Extension(Arc::new(webauthn)));
 
