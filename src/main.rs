@@ -4,8 +4,9 @@ use argon2::{
 };
 use axum::{
     async_trait,
+    body::{boxed, Full},
     extract::{self, FromRequest, Path, RequestParts},
-    http::{header, HeaderMap},
+    http::{header, HeaderMap, Response},
     http::{header::AUTHORIZATION, StatusCode},
     response::IntoResponse,
     routing::get,
@@ -13,6 +14,7 @@ use axum::{
 };
 use axum_auth::AuthBasic;
 use clap::{arg, Command};
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -318,6 +320,32 @@ async fn auth_handler() -> impl IntoResponse {
     StatusCode::UNAUTHORIZED
 }
 
+#[derive(RustEmbed)]
+#[folder = "assets"]
+struct Assets;
+
+async fn assets_handler(Path(raw_path): Path<String>) -> impl IntoResponse {
+    let path = raw_path.trim_start_matches('/');
+    let mime = mime_guess::from_path(path).first_or_octet_stream();
+    let (status, body) = match Assets::get(path) {
+        Some(content) => (StatusCode::OK, boxed(Full::from(content.data))),
+        None => (StatusCode::NOT_FOUND, boxed(Full::default())),
+    };
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, mime.as_ref())
+        .body(body)
+        .expect("failed to build response")
+}
+
+async fn index_handler() -> impl IntoResponse {
+    assets_handler(Path("index.html".to_string())).await
+}
+
+async fn favicon_handler() -> impl IntoResponse {
+    assets_handler(Path("favicon.ico".to_string())).await
+}
+
 fn build_webauthn(id: &str, origin: &Url) -> anyhow::Result<Webauthn> {
     match WebauthnBuilder::new(id, origin)?
         .allow_subdomains(false)
@@ -355,6 +383,9 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         .route("/auth", get(auth_handler))
         .route("/start", get(start_handler))
         .route("/end/:username", get(end_handler))
+        .route("/assets/*path", get(assets_handler))
+        .route("/favicon.ico", get(favicon_handler))
+        .route("/", get(index_handler))
         .layer(Extension(Arc::new(RwLock::new(app_state))))
         .layer(Extension(Arc::new(webauthn)));
 
