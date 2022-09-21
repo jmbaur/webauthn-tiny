@@ -69,6 +69,7 @@ async function main() {
         break;
       } catch (err) {
         console.error("failed to authenticate", err);
+        if (err instanceof DOMException) break;
       }
       triedAuth++;
     } else break;
@@ -80,7 +81,7 @@ async function main() {
         continue;
       } catch (err) {
         console.error("failed to register", err);
-        break; // if registration fails, quit
+        break;
       }
     } else break;
   }
