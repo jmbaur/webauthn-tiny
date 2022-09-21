@@ -121,11 +121,11 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         .route("/register/end/:username", post(register_end_handler))
         .route(
             "/favicon.ico",
-            get(|| async { assets_handler(Path("assets/favicon.ico".to_string())).await }),
+            get(|| async { assets_handler(Path("favicon.ico".to_string())).await }),
         )
         .route(
-            "/bundle.js",
-            get(|| async { assets_handler(Path("bundle.js".to_string())).await }),
+            "/index.js",
+            get(|| async { assets_handler(Path("index.js".to_string())).await }),
         )
         .route(
             "/index.html",
