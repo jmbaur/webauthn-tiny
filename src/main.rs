@@ -125,6 +125,10 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
             get(|| async { assets_handler(Path("favicon.ico".to_string())).await }),
         )
         .route(
+            "/index.html",
+            get(|| async { assets_handler(Path("index.html".to_string())).await }),
+        )
+        .route(
             "/",
             get(|| async { assets_handler(Path("index.html".to_string())).await }),
         )
