@@ -9,6 +9,7 @@
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
       webauthn-tiny = prev.callPackage ./. { };
+      webauthn-tiny-assets = prev.callPackage ./assets { };
     };
   } // flake-utils.lib.eachDefaultSystem (system:
     let
@@ -28,12 +29,15 @@
     in
     {
       packages.default = pkgs.webauthn-tiny;
+      packages.webauthn-tiny = pkgs.webauthn-tiny;
+      packages.webauthn-tiny-assets = pkgs.webauthn-tiny-assets;
+      devShells.web = pkgs.mkShell {
+        inherit (pkgs.webauthn-tiny-assets) nativeBuildInputs buildInputs;
+      };
       devShells.default = pkgs.mkShell {
+        ASSETS_DIR = "assets/dist";
         inherit (pre-commit-hooks) shellHook;
-        inherit (pkgs.webauthn-tiny)
-          PKG_CONFIG_PATH
-          buildInputs
-          nativeBuildInputs;
+        inherit (pkgs.webauthn-tiny) PKG_CONFIG_PATH nativeBuildInputs buildInputs;
       };
     });
 }

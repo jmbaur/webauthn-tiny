@@ -1,7 +1,8 @@
 mod app;
 mod handlers;
 
-use app::{AppState, UserState};
+use app::AppState;
+use app::{load, persist, Users};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
@@ -16,30 +17,33 @@ use handlers::{
     assets_handler, authenticate_end_handler, authenticate_start_handler, register_end_handler,
     register_start_handler, session_handler,
 };
-use std::sync::{Arc, RwLock};
-use webauthn_rs::{
-    prelude::{Url, Uuid},
-    Webauthn, WebauthnBuilder,
+use std::io::Write;
+use std::{
+    io,
+    sync::{Arc, RwLock},
 };
+use tower::ServiceBuilder;
+use tower_http::trace::{DefaultOnRequest, TraceLayer};
+use webauthn_rs::{prelude::Url, Webauthn, WebauthnBuilder};
 
-fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
-    let id = sub_m.get_one::<String>("id").expect("`id` is required");
-    let origin = sub_m
-        .get_one::<String>("origin")
-        .expect("`origin` is required");
-
-    let username = sub_m
-        .get_one::<String>("username")
-        .expect("`username` is required");
-    let password = sub_m
-        .get_one::<String>("password")
-        .expect("`password` is required");
-
+fn adduser(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     let user_file = sub_m
         .get_one::<String>("userfile")
         .expect("`userfile` is required");
 
-    let mut state = AppState::new(id.to_string(), origin.to_string(), user_file.to_string())?;
+    print!("username: ");
+    io::stdout().flush()?;
+    let stdin = io::stdin();
+    let mut iterator = stdin.lines();
+    let username = iterator.next().expect("")?;
+    let password = rpassword::prompt_password("password: ")?;
+    let confirmed_password = rpassword::prompt_password("confirm password: ")?;
+
+    if password != confirmed_password {
+        anyhow::bail!("passwords do not match")
+    }
+
+    let mut users = load::<Users>(user_file)?;
 
     let argon = Argon2::default();
     let salt = SaltString::generate(&mut OsRng);
@@ -49,19 +53,13 @@ fn register(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         Err(e) => anyhow::bail!(e),
     };
 
-    if let Some(user) = state.users.get_mut(username) {
-        user.hash = hash.to_string();
+    if let Some(password) = users.get_mut(&username) {
+        *password = hash.to_string();
     } else {
-        let new_user = UserState {
-            id: Uuid::new_v4(),
-            hash: hash.to_string(),
-            credentials: vec![],
-        };
-
-        state.users.insert(username.to_string(), new_user);
+        users.insert(username.to_string(), hash.to_string());
     }
 
-    state.save()
+    persist(user_file, &users)
 }
 
 fn build_webauthn(id: &str, origin: &Url) -> anyhow::Result<Webauthn> {
@@ -76,17 +74,22 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         .get_one::<String>("userfile")
         .expect("`userfile` is required");
 
+    let credential_file = sub_m
+        .get_one::<String>("credentialfile")
+        .expect("`credentialfile` is required");
+
     let origin = sub_m
         .get_one::<String>("origin")
         .expect("`origin` is required");
 
     let id = sub_m.get_one::<String>("id").expect("`id` is required");
 
-    let app_state = dbg!(AppState::new(
+    let app_state = AppState::new(
         id.to_string(),
         origin.to_string(),
-        user_file.to_string()
-    ))?;
+        user_file.to_string(),
+        credential_file.to_string(),
+    )?;
 
     let default_socket_addr = &"[::]:8080".to_string();
     let socket_addr: &String = match sub_m.get_one("address") {
@@ -116,8 +119,12 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
             "/",
             get(|| async { assets_handler(Path("index.html".to_string())).await }),
         )
-        .layer(Extension(Arc::new(RwLock::new(app_state))))
-        .layer(Extension(Arc::new(webauthn)));
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http().on_request(DefaultOnRequest::new()))
+                .layer(Extension(Arc::new(RwLock::new(app_state))))
+                .layer(Extension(Arc::new(webauthn))),
+        );
 
     eprintln!("listening on {}", sock_addr);
     axum::Server::bind(&sock_addr)
@@ -133,30 +140,25 @@ async fn main() -> anyhow::Result<()> {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
-            Command::new("register")
-                .args(&[
-                    arg!(-f --userfile <FILE> "The path to a password file"),
-                    arg!(-i --id <ID> "ID to use for webauthn"),
-                    arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
-                    arg!(-p --password <PASSWORD> "The password for the user"),
-                    arg!(-u --username <NAME> "The name for the user"),
-                ])
+            Command::new("adduser")
+                .args(&[arg!(-u --userfile <FILE> "The path to a users file (YAML)")])
                 .about("Register a new user"),
         )
         .subcommand(
             Command::new("serve")
                 .args(&[
                     arg!(-a --address [ADDRESS] "Socket address to bind to"),
-                    arg!(-f --userfile <FILE> "The path to a password file"),
+                    arg!(-c --credentialfile <FILE> "The path to a credentials file"),
                     arg!(-i --id <ID> "ID to use for webauthn"),
                     arg!(-o --origin <ORIGIN> "Origin to use for webauthn"),
+                    arg!(-u --userfile <FILE> "The path to a users file (YAML)"),
                 ])
                 .about("Start the HTTP server"),
         )
         .get_matches();
 
     match cmd.subcommand() {
-        Some(("register", sub_m)) => register(sub_m),
+        Some(("adduser", sub_m)) => adduser(sub_m),
         Some(("serve", sub_m)) => serve(sub_m).await,
         _ => unreachable!(),
     }

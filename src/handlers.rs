@@ -1,4 +1,6 @@
 use crate::app;
+
+use app::persist;
 use app::SharedAppState;
 use argon2::Argon2;
 use argon2::PasswordHash;
@@ -16,11 +18,14 @@ use axum::{
 };
 use axum_auth::AuthBasic;
 use rust_embed::RustEmbed;
+use serde::Serialize;
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
+use webauthn_rs_proto::CreationChallengeResponse;
 use webauthn_rs_proto::CredentialID;
 use webauthn_rs_proto::PublicKeyCredential;
 use webauthn_rs_proto::RegisterPublicKeyCredential;
+use webauthn_rs_proto::RequestChallengeResponse;
 
 pub struct MyBasicAuth(AuthBasic);
 
@@ -55,8 +60,11 @@ pub async fn register_start_handler(
 ) -> impl IntoResponse {
     let mut state = shared_state.write().expect("failed to lock state");
     let user = match state.users.get(&username) {
-        Some(user) => match passwords_match(password, user.hash.to_owned()) {
-            true => user,
+        Some(hash) => match passwords_match(password, hash.to_owned()) {
+            true => match state.credentials.get(&username) {
+                Some(user) => user,
+                None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
+            },
             false => return (StatusCode::UNAUTHORIZED, String::from("{}")),
         },
         None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
@@ -83,9 +91,18 @@ pub async fn register_start_handler(
 
     state
         .in_progress_registrations
-        .insert(username, passkey_reg);
+        .insert(username.clone(), passkey_reg);
 
-    match serde_json::to_string(&req_chal) {
+    #[derive(Serialize)]
+    struct Return {
+        username: String,
+        challenge_response: CreationChallengeResponse,
+    }
+
+    match serde_json::to_string(&Return {
+        username,
+        challenge_response: req_chal,
+    }) {
         Ok(j) => (StatusCode::OK, j),
         Err(e) => {
             eprintln!("failed to serialize JSON: {}", e);
@@ -93,31 +110,36 @@ pub async fn register_start_handler(
         }
     }
 }
+
 pub async fn register_end_handler(
     Path(username): Path<String>,
     payload: extract::Json<RegisterPublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {
-    let r_state = shared_state.read().expect("failed to lock state");
-    let passkey_reg = match r_state.in_progress_registrations.get(&username) {
+    let mut state = shared_state.write().expect("failed to lock state");
+
+    let passkey_reg = dbg!(match state.in_progress_registrations.get(&username) {
         Some(r) => r,
         None => return StatusCode::NOT_FOUND,
-    };
+    });
 
-    let mut m_state = shared_state.write().expect("failed to lock state");
-    let user = match m_state.users.get_mut(&username) {
+    eprintln!("{:#?}", payload);
+
+    let passkey = dbg!(
+        match webauthn.finish_passkey_registration(&payload, passkey_reg) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("{e}");
+                return StatusCode::UNAUTHORIZED;
+            }
+        }
+    );
+
+    let user = dbg!(match state.credentials.get_mut(&username) {
         Some(u) => u,
         None => return StatusCode::NOT_FOUND,
-    };
-
-    let passkey = match webauthn.finish_passkey_registration(&payload, passkey_reg) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("{e}");
-            return StatusCode::UNAUTHORIZED;
-        }
-    };
+    });
 
     if user
         .credentials
@@ -128,9 +150,9 @@ pub async fn register_end_handler(
         return StatusCode::BAD_REQUEST;
     }
 
-    user.credentials.push(passkey);
+    dbg!(user.credentials.push(passkey));
 
-    if let Err(e) = m_state.save() {
+    if let Err(e) = dbg!(persist(&state.credential_file, &state.credentials)) {
         eprintln!("{e}");
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
@@ -145,12 +167,19 @@ pub async fn authenticate_start_handler(
 ) -> impl IntoResponse {
     let mut state = shared_state.write().expect("failed to lock state");
     let user = match state.users.get(&username) {
-        Some(user) => match passwords_match(password, user.hash.to_owned()) {
-            true => user,
+        Some(hash) => match passwords_match(password, hash.to_owned()) {
+            true => match state.credentials.get(&username) {
+                Some(user) => user,
+                None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
+            },
             false => return (StatusCode::UNAUTHORIZED, String::from("{}")),
         },
         None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
     };
+
+    if user.credentials.is_empty() {
+        return (StatusCode::UNAUTHORIZED, String::from("{}"));
+    }
 
     let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&user.credentials) {
         Ok(a) => a,
@@ -160,21 +189,20 @@ pub async fn authenticate_start_handler(
         }
     };
 
-    // let mut authenticator = WebauthnAuthenticator::new(u2fhid::U2FHid::default());
-    // let rp_origin = Url::parse(&state.origin).unwrap();
-    // let pk_cred = authenticator
-    //     .do_authentication(rp_origin, req_chal.clone())
-    //     .unwrap();
-    // let res = webauthn
-    //     .finish_passkey_authentication(&pk_cred, &passkey_auth)
-    //     .unwrap();
-    // eprintln!("{:#?}", res);
-
     state
         .in_progress_authentications
-        .insert(username, passkey_auth);
+        .insert(username.clone(), passkey_auth);
 
-    match serde_json::to_string(&req_chal) {
+    #[derive(Serialize)]
+    struct Return {
+        username: String,
+        challenge_response: RequestChallengeResponse,
+    }
+
+    match serde_json::to_string(&Return {
+        username,
+        challenge_response: req_chal,
+    }) {
         Ok(j) => (StatusCode::OK, j),
         Err(e) => {
             eprintln!("failed to serialize JSON: {}", e);
@@ -210,7 +238,7 @@ pub async fn authenticate_end_handler(
 }
 
 #[derive(RustEmbed)]
-#[folder = "assets"]
+#[folder = "$ASSETS_DIR"]
 struct Assets;
 
 pub async fn assets_handler(Path(raw_path): Path<String>) -> impl IntoResponse {
