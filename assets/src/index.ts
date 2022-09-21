@@ -25,13 +25,11 @@ async function endAuthentication(inProgress: InProgressAuthentication) {
   const data = await get(inProgress.opts);
   const body = JSON.stringify(data);
 
-  const response = await fetch(`/authenticate/end/${inProgress.username}`, {
+  await fetch(`/authenticate/end/${inProgress.username}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
-
-  console.log(response);
 }
 
 async function startRegistration(): Promise<InProgressRegistration> {
@@ -47,27 +45,45 @@ async function endRegistration(inProgress: InProgressRegistration) {
   const data = await create(inProgress.opts);
   const body = JSON.stringify(data);
 
-  const response = await fetch(`/register/end/${inProgress.username}`, {
+  await fetch(`/register/end/${inProgress.username}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
-
-  console.log(response);
 }
 
-function main() {
+async function main() {
   if (!window.PublicKeyCredential) {
     alert("Error: this browser does not support WebAuthn");
     return;
   }
 
-  startAuthentication().then(endAuthentication).catch(
-    (err) => {
-      console.error(err);
-      startRegistration().then(endRegistration).catch(console.error);
-    },
-  );
+  let triedAuth = 0;
+  let triedReg = 0;
+
+  for (;;) {
+    if (triedAuth < 2) {
+      try {
+        const auth = await startAuthentication();
+        await endAuthentication(auth);
+        break;
+      } catch (err) {
+        console.error("failed to authenticate", err);
+      }
+      triedAuth++;
+    } else break;
+    if (triedReg < 1) {
+      try {
+        const reg = await startRegistration();
+        triedReg++;
+        await endRegistration(reg);
+        continue;
+      } catch (err) {
+        console.error("failed to register", err);
+        break; // if registration fails, quit
+      }
+    } else break;
+  }
 }
 
 main();
