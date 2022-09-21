@@ -4,7 +4,10 @@ mod handlers;
 use app::AppState;
 use app::{load, persist, Users};
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    password_hash::{
+        rand_core::{OsRng, RngCore},
+        PasswordHasher, SaltString,
+    },
     Argon2,
 };
 use axum::{
@@ -12,6 +15,7 @@ use axum::{
     routing::{get, post},
     Extension,
 };
+use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use clap::{arg, Command};
 use handlers::{
     assets_handler, authenticate_end_handler, authenticate_start_handler, register_end_handler,
@@ -101,6 +105,11 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     let origin_url = Url::parse(origin)?;
     let webauthn = build_webauthn(id.as_str(), &origin_url)?;
 
+    let store = MemoryStore::new();
+    let mut secret = [0u8; 64];
+    OsRng.fill_bytes(&mut secret);
+    let session_layer = SessionLayer::new(store, &secret);
+
     let app = axum::Router::new()
         .route("/session", get(session_handler))
         .route("/authenticate/start", get(authenticate_start_handler))
@@ -122,6 +131,7 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http().on_request(DefaultOnRequest::new()))
+                .layer(session_layer)
                 .layer(Extension(Arc::new(RwLock::new(app_state))))
                 .layer(Extension(Arc::new(webauthn))),
         );

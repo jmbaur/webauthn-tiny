@@ -17,6 +17,8 @@ use axum::{
     Extension,
 };
 use axum_auth::AuthBasic;
+use axum_sessions::extractors::ReadableSession;
+use axum_sessions::extractors::WritableSession;
 use rust_embed::RustEmbed;
 use serde::Serialize;
 use std::sync::Arc;
@@ -51,7 +53,13 @@ impl<B: Send> FromRequest<B> for MyBasicAuth {
     }
 }
 
-pub async fn session_handler() {}
+pub async fn session_handler(session: ReadableSession) -> impl IntoResponse {
+    if session.get::<bool>("logged_in").unwrap_or(false) {
+        StatusCode::OK
+    } else {
+        StatusCode::UNAUTHORIZED
+    }
+}
 
 pub async fn register_start_handler(
     MyBasicAuth(AuthBasic((username, password))): MyBasicAuth,
@@ -208,6 +216,7 @@ pub async fn authenticate_start_handler(
 }
 
 pub async fn authenticate_end_handler(
+    mut session: WritableSession,
     Path(username): Path<String>,
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
@@ -232,6 +241,11 @@ pub async fn authenticate_end_handler(
         Some(c) => c,
         None => return StatusCode::UNAUTHORIZED,
     };
+
+    if let Err(e) = session.insert("logged_in", true) {
+        eprintln!("{e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
 
     if auth_result.counter() > 0 {
         cred_state.credentials.iter_mut().for_each(|c| {
