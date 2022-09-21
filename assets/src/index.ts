@@ -47,11 +47,13 @@ async function endRegistration(inProgress: InProgressRegistration) {
   const data = await create(inProgress.opts);
   const body = JSON.stringify(data);
 
-  fetch(`/register/end/${inProgress.username}`, {
+  const response = await fetch(`/register/end/${inProgress.username}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
+
+  console.log(response);
 }
 
 function main() {

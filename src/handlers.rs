@@ -119,27 +119,23 @@ pub async fn register_end_handler(
 ) -> impl IntoResponse {
     let mut state = shared_state.write().expect("failed to lock state");
 
-    let passkey_reg = dbg!(match state.in_progress_registrations.get(&username) {
+    let passkey_reg = match state.in_progress_registrations.get(&username) {
         Some(r) => r,
         None => return StatusCode::NOT_FOUND,
-    });
+    };
 
-    eprintln!("{:#?}", payload);
-
-    let passkey = dbg!(
-        match webauthn.finish_passkey_registration(&payload, passkey_reg) {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("{e}");
-                return StatusCode::UNAUTHORIZED;
-            }
+    let passkey = match webauthn.finish_passkey_registration(&payload, passkey_reg) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            return StatusCode::UNAUTHORIZED;
         }
-    );
+    };
 
-    let user = dbg!(match state.credentials.get_mut(&username) {
+    let user = match state.credentials.get_mut(&username) {
         Some(u) => u,
         None => return StatusCode::NOT_FOUND,
-    });
+    };
 
     if user
         .credentials
@@ -150,9 +146,9 @@ pub async fn register_end_handler(
         return StatusCode::BAD_REQUEST;
     }
 
-    dbg!(user.credentials.push(passkey));
+    user.credentials.push(passkey);
 
-    if let Err(e) = dbg!(persist(&state.credential_file, &state.credentials)) {
+    if let Err(e) = persist(&state.credential_file, &state.credentials) {
         eprintln!("{e}");
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
@@ -217,7 +213,7 @@ pub async fn authenticate_end_handler(
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> impl IntoResponse {
-    let state = shared_state.read().expect("failed to lock state");
+    let mut state = shared_state.write().expect("failed to lock state");
 
     let passkey = match state.in_progress_authentications.get(&username) {
         Some(p) => p,
@@ -232,7 +228,23 @@ pub async fn authenticate_end_handler(
         }
     };
 
-    eprintln!("{:#?}", auth_result);
+    let cred_state = match state.credentials.get_mut(&username) {
+        Some(c) => c,
+        None => return StatusCode::UNAUTHORIZED,
+    };
+
+    if auth_result.counter() > 0 {
+        cred_state.credentials.iter_mut().for_each(|c| {
+            if c.cred_id() == auth_result.cred_id() {
+                c.update_credential(&auth_result);
+            }
+        });
+    }
+
+    if let Err(e) = persist(&state.credential_file, &state.credentials) {
+        eprintln!("{e}");
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
 
     StatusCode::OK
 }
