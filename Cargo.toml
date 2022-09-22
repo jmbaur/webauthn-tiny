@@ -6,25 +6,24 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.64"
-argon2 = "0.4.1"
+anyhow = { default-features = false, version = "1.0.64" }
 async-trait = "0.1.57"
-axum = "0.5.16"
-axum-auth = "0.3.0"
+axum = { default-features = false, version = "0.5.16" }
 axum-sessions = "0.3.1"
-clap = { version = "3.2.20", features = ["derive"] }
-mime_guess = "2.0.4"
-rand_core = { version = "0.6.3", features = ["std"] }
-rpassword = "7.0.0"
-rust-embed = { version = "6.4.1", features = [
-  "interpolate-folder-path",
-  "axum",
-] }
-serde = { version = "1.0.144", features = ["derive"] }
-serde_json = "1.0.85"
+clap = { version = "3.2.20", features = [
+  "derive",
+  "std",
+], default-features = false }
+mime_guess = { default-features = false, version = "2.0.4" }
+rand_core = { version = "0.6.3", default-features = false }
+rusqlite = "0.28.0"
+serde = { version = "1.0.144", default-features = false }
+serde_json = { default-features = false, version = "1.0.85" }
 serde_yaml = "0.9.11"
-tokio = { version = "1.21.0", features = ["full"] }
-tower = { version = "0.4.13", features = ["full"] }
-tower-http = { version = "0.3.4", features = ["full"] }
+tokio = { version = "1.21.0", features = [
+  "macros",
+  "rt-multi-thread",
+], default-features = false }
+tokio-rusqlite = "0.3.0"
 webauthn-rs = "0.4.6"
 webauthn-rs-proto = "0.4.6"

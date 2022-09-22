@@ -1,11 +1,11 @@
 {
-  "name": "assets",
+  "name": "webauthn-tiny-client",
   "version": "0.1.0",
   "source": "index.html",
   "license": "MIT",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
-    "dev": "parcel watch",
+    "dev": "parcel serve",
     "check": "tsc --noEmit",
     "build": "parcel build"
   },

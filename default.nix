@@ -1,16 +1,26 @@
 { rustPlatform
 , pkg-config
 , openssl
+, sqlite
 , systemd
-, webauthn-tiny-assets
+, assets
+, lib
 , ...
 }:
+let
+  cargoToml = lib.importTOML ./Cargo.toml;
+  pname = cargoToml.package.name;
+  inherit (cargoToml.package) version;
+in
 rustPlatform.buildRustPackage {
-  pname = "webauthn-tiny";
-  version = "0.1.0";
+  inherit pname version;
   src = ./.;
-  ASSETS_DIR = "${webauthn-tiny-assets}";
-  PKG_CONFIG_PATH = "${openssl.dev}/lib/pkgconfig:${systemd.dev}/lib/pkgconfig";
-  nativeBuildInputs = [ pkg-config ];
   cargoLock.lockFile = ./Cargo.lock;
+  ASSETS_PATH = "${assets}";
+  PKG_CONFIG_PATH = lib.concatMapStringsSep ":" (drv: "${drv}/lib/pkgconfig") [
+    sqlite.dev
+    openssl.dev
+    systemd.dev
+  ];
+  nativeBuildInputs = [ pkg-config ];
 }

@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tokio_rusqlite::Connection;
 use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration, Uuid};
 
 pub type Users = HashMap<String, String>; // username:password
@@ -35,55 +36,57 @@ where
 }
 
 #[derive(Debug)]
-pub struct AppState {
-    pub credential_file: String,
-    pub credentials: Credentials,
+pub struct App {
     pub id: String,
     pub in_progress_authentications: HashMap<String, PasskeyAuthentication>,
     pub in_progress_registrations: HashMap<String, PasskeyRegistration>,
     pub origin: String,
-    pub user_file: String,
-    pub users: Users,
+    db: Connection,
 }
 
-pub type SharedAppState = Arc<RwLock<AppState>>;
+pub type SharedAppState = Arc<RwLock<App>>;
 
-impl AppState {
-    pub fn new(
-        id: String,
-        origin: String,
-        user_file: String,
-        credential_file: String,
-    ) -> anyhow::Result<Self> {
-        let users = load::<Users>(user_file.as_str())?;
-        let mut credentials = load::<Credentials>(credential_file.as_str())?;
-
-        let mut touched = false;
-        for username in users.keys() {
-            if credentials.get(username).is_none() {
-                credentials.insert(
-                    username.to_string(),
-                    CredentialState {
-                        id: Uuid::new_v4(),
-                        credentials: vec![],
-                    },
-                );
-                touched = true;
-            }
-        }
-        if touched {
-            persist(&credential_file, &credentials)?;
-        }
-
+impl App {
+    pub fn new(db: Connection, id: String, origin: String) -> anyhow::Result<Self> {
         Ok(Self {
-            credential_file,
-            credentials,
+            db,
             id,
             in_progress_authentications: HashMap::new(),
             in_progress_registrations: HashMap::new(),
             origin,
-            user_file,
-            users,
         })
+    }
+
+    pub async fn init(&self) -> Result<(), rusqlite::Error> {
+        self.db
+            .call(|conn| {
+                conn.execute(
+                    r#"create table if not exists users (
+                 id uuid primary key,
+                 username text not null,
+             )"#,
+                    [],
+                )?;
+                conn.execute(r#"create table if not exists credentials ()"#, [])?;
+
+                Ok::<_, rusqlite::Error>(())
+            })
+            .await
+    }
+
+    pub async fn get_credentials() -> Result<(), rusqlite::Error> {
+        Ok(())
+    }
+
+    pub async fn add_credential() -> Result<(), rusqlite::Error> {
+        Ok(())
+    }
+
+    pub async fn update_credential() -> Result<(), rusqlite::Error> {
+        Ok(())
+    }
+
+    pub async fn delete_credential() -> Result<(), rusqlite::Error> {
+        Ok(())
     }
 }

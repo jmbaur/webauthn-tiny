@@ -1,5 +1,7 @@
 .direnv
+.parcel-cache
 .pre-commit-config.yaml
+dist
+node_modules
 result*
-state
 target

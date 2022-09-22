@@ -7,11 +7,10 @@ use argon2::PasswordHash;
 use argon2::PasswordVerifier;
 use async_trait::async_trait;
 use axum::{
-    body::{boxed, Full},
     extract::{self, FromRequest, Path, RequestParts},
     http::{
         header::{self, AUTHORIZATION},
-        HeaderMap, Response, StatusCode, Uri,
+        HeaderMap, StatusCode,
     },
     response::IntoResponse,
     Extension,
@@ -19,7 +18,6 @@ use axum::{
 use axum_auth::AuthBasic;
 use axum_sessions::extractors::ReadableSession;
 use axum_sessions::extractors::WritableSession;
-use rust_embed::RustEmbed;
 use serde::Serialize;
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
@@ -53,7 +51,7 @@ impl<B: Send> FromRequest<B> for MyBasicAuth {
     }
 }
 
-pub async fn session_handler(session: ReadableSession) -> impl IntoResponse {
+pub async fn validate_handler(session: ReadableSession) -> impl IntoResponse {
     if session.get::<bool>("logged_in").unwrap_or(false) {
         StatusCode::OK
     } else {
@@ -263,43 +261,10 @@ pub async fn authenticate_end_handler(
     StatusCode::OK
 }
 
-#[derive(RustEmbed)]
-#[folder = "$ASSETS_DIR"]
-struct Assets;
-
-pub async fn assets_handler(Path(raw_path): Path<String>) -> impl IntoResponse {
-    let path = raw_path.trim_start_matches('/');
-    let mime = mime_guess::from_path(path).first_or_octet_stream();
-    let (status, body) = match Assets::get(path) {
-        Some(content) => (StatusCode::OK, boxed(Full::from(content.data))),
-        None => (StatusCode::NOT_FOUND, boxed(Full::default())),
-    };
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, mime.as_ref())
-        .body(body)
-        .expect("failed to build response")
+pub async fn get_credentials_handler() -> impl IntoResponse {
+    StatusCode::OK
 }
 
-fn passwords_match(password: Option<String>, hash: String) -> bool {
-    if password.is_none() {
-        return false;
-    }
-
-    let parsed_hash = match PasswordHash::new(&hash) {
-        Ok(p) => p,
-        Err(_) => return false,
-    };
-
-    let argon = Argon2::default();
-    argon
-        .verify_password(
-            password.expect("already checked is not none").as_bytes(),
-            &parsed_hash,
-        )
-        .is_ok()
-}
-
-pub async fn fallback_handler(uri: Uri) -> impl IntoResponse {
-    assets_handler(Path(uri.to_string())).await
+pub async fn delete_credentials_handler() -> impl IntoResponse {
+    StatusCode::OK
 }
