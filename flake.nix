@@ -11,6 +11,7 @@
       webauthn-tiny = prev.callPackage ./. { };
       webauthn-tiny-assets = prev.callPackage ./assets { };
     };
+    nixosModules.default = import ./module.nix inputs;
   } // flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = import nixpkgs {
@@ -29,6 +30,7 @@
     in
     {
       packages.default = pkgs.webauthn-tiny;
+      packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.webauthn-tiny = pkgs.webauthn-tiny;
       packages.webauthn-tiny-assets = pkgs.webauthn-tiny-assets;
       devShells.web = pkgs.mkShell {
