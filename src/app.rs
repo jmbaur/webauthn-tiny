@@ -82,7 +82,7 @@ impl AppState {
             in_progress_authentications: HashMap::new(),
             in_progress_registrations: HashMap::new(),
             origin,
-            user_file: user_file.clone(),
+            user_file,
             users,
         })
     }

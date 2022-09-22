@@ -11,14 +11,14 @@ use argon2::{
     Argon2,
 };
 use axum::{
-    extract::Path,
+    handler::Handler,
     routing::{get, post},
-    Extension,
+    Extension, Router,
 };
 use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use clap::{arg, Command};
 use handlers::{
-    assets_handler, authenticate_end_handler, authenticate_start_handler, register_end_handler,
+    authenticate_end_handler, authenticate_start_handler, fallback_handler, register_end_handler,
     register_start_handler, session_handler,
 };
 use std::io::Write;
@@ -110,7 +110,7 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
     OsRng.fill_bytes(&mut secret);
     let session_layer = SessionLayer::new(store, &secret);
 
-    let app = axum::Router::new()
+    let app = Router::new()
         .route("/session", get(session_handler))
         .route("/authenticate/start", get(authenticate_start_handler))
         .route(
@@ -119,22 +119,7 @@ async fn serve(sub_m: &clap::ArgMatches) -> anyhow::Result<()> {
         )
         .route("/register/start", get(register_start_handler))
         .route("/register/end/:username", post(register_end_handler))
-        .route(
-            "/favicon.ico",
-            get(|| async { assets_handler(Path("favicon.ico".to_string())).await }),
-        )
-        .route(
-            "/index.js",
-            get(|| async { assets_handler(Path("index.js".to_string())).await }),
-        )
-        .route(
-            "/index.html",
-            get(|| async { assets_handler(Path("index.html".to_string())).await }),
-        )
-        .route(
-            "/",
-            get(|| async { assets_handler(Path("index.html".to_string())).await }),
-        )
+        .fallback(fallback_handler.into_service())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http().on_request(DefaultOnRequest::new()))

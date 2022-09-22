@@ -11,7 +11,7 @@ use axum::{
     extract::{self, FromRequest, Path, RequestParts},
     http::{
         header::{self, AUTHORIZATION},
-        HeaderMap, Response, StatusCode,
+        HeaderMap, Response, StatusCode, Uri,
     },
     response::IntoResponse,
     Extension,
@@ -298,4 +298,8 @@ fn passwords_match(password: Option<String>, hash: String) -> bool {
             &parsed_hash,
         )
         .is_ok()
+}
+
+pub async fn fallback_handler(uri: Uri) -> impl IntoResponse {
+    assets_handler(Path(uri.to_string())).await
 }

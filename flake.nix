@@ -38,8 +38,9 @@
       };
       devShells.default = pkgs.mkShell {
         ASSETS_DIR = "assets/dist";
+        buildInputs = with pkgs; [ clippy cargo-watch ];
+        inherit (pkgs.webauthn-tiny) PKG_CONFIG_PATH nativeBuildInputs;
         inherit (pre-commit-hooks) shellHook;
-        inherit (pkgs.webauthn-tiny) PKG_CONFIG_PATH nativeBuildInputs buildInputs;
       };
     });
 }
