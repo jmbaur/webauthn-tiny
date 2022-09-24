@@ -195,6 +195,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-macros"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6293dae2ec708e679da6736e857cf8532886ef258e92930f38279c12641628b8"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "axum-sessions"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -356,9 +368,9 @@ dependencies = [
 
 [[package]]
 name = "compact_jwt"
-version = "0.2.5"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42c27827fd8d4c7b1328a3e3d4e3f0a4a72ae42a7ad77792d874466f37f1c960"
+checksum = "5656b98b1584764a52906e67caec20dfb9b0179ac2052d0d5937b083bc39a120"
 dependencies = [
  "base64",
  "base64urlsafedata",
@@ -821,9 +833,9 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.49"
+version = "0.1.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bbaead50122b06e9a973ac20bc7445074d99ad9a0a0654934876908a9cec82c"
+checksum = "fd911b35d940d2bd0bea0f9100068e5b97b51a1cbe13d13382f132e0365257a0"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -1774,6 +1786,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "axum-macros",
  "axum-sessions",
  "clap",
  "mime_guess",

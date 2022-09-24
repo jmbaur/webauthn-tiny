@@ -13,11 +13,8 @@ use handlers::{
     get_credentials_handler, register_end_handler, register_start_handler, validate_handler,
 };
 use rand_core::{OsRng, RngCore};
-use std::{
-    env,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{env, path::PathBuf, sync::Arc};
+use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use webauthn_rs::{prelude::Url, WebauthnBuilder};
 
@@ -46,12 +43,14 @@ async fn main() -> anyhow::Result<()> {
     let session_layer = SessionLayer::new(store, &secret);
 
     let state_dir = env::var("STATE_DIRECTORY")?;
-    let db_path = PathBuf::from(state_dir);
+    let mut db_path = PathBuf::from(state_dir);
     db_path.push("webauthn-tiny.db");
     let db = Connection::open(db_path).await?;
 
-    let app_state = App::new(db, cli.id, cli.url)?;
-    let app = Router::new()
+    let app = App::new(db, cli.id, cli.url)?;
+    app.init().await?;
+
+    let router = Router::new()
         .route("/validate", get(validate_handler))
         .route("/api/credentials", get(get_credentials_handler))
         .route("/api/credentials/:id", delete(delete_credentials_handler))
@@ -64,13 +63,13 @@ async fn main() -> anyhow::Result<()> {
             get(authenticate_start_handler).post(authenticate_end_handler),
         )
         .layer(session_layer)
-        .layer(Extension(Arc::new(RwLock::new(app_state))))
+        .layer(Extension(Arc::new(RwLock::new(app))))
         .layer(Extension(Arc::new(webauthn)));
 
     let sock_addr: std::net::SocketAddr = cli.address.parse()?;
     eprintln!("listening on {}", sock_addr);
     Server::bind(&sock_addr)
-        .serve(app.into_make_service())
+        .serve(router.into_make_service())
         .await?;
 
     Ok(())

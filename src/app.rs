@@ -1,15 +1,10 @@
-use std::{
-    collections::HashMap,
-    fs,
-    sync::{Arc, RwLock},
-};
-
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use axum::http::StatusCode;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration, Uuid};
-
-pub type Users = HashMap<String, String>; // username:password
-pub type Credentials = HashMap<String, CredentialState>;
+use webauthn_rs_proto::CredentialID;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CredentialState {
@@ -17,25 +12,15 @@ pub struct CredentialState {
     pub credentials: Vec<Passkey>,
 }
 
-pub fn load<T>(path: &str) -> anyhow::Result<T>
-where
-    T: DeserializeOwned,
-{
-    let contents = fs::read_to_string(path)?;
-    let data: T = serde_yaml::from_str(&contents)?;
-    anyhow::Ok(data)
+#[derive(Debug, Clone)]
+pub struct AppError;
+
+impl From<AppError> for StatusCode {
+    fn from(_error: AppError) -> Self {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
 }
 
-pub fn persist<T>(path: &str, data: &T) -> anyhow::Result<()>
-where
-    T: Serialize,
-{
-    let contents = serde_yaml::to_string(data)?;
-    fs::write(path, contents)?;
-    Ok(())
-}
-
-#[derive(Debug)]
 pub struct App {
     pub id: String,
     pub in_progress_authentications: HashMap<String, PasskeyAuthentication>,
@@ -45,6 +30,12 @@ pub struct App {
 }
 
 pub type SharedAppState = Arc<RwLock<App>>;
+
+pub struct UserWithCredentials {
+    pub id: Uuid,
+    pub username: String,
+    pub credentials: Vec<Passkey>,
+}
 
 impl App {
     pub fn new(db: Connection, id: String, origin: String) -> anyhow::Result<Self> {
@@ -62,11 +53,12 @@ impl App {
             .call(|conn| {
                 conn.execute(
                     r#"create table if not exists users (
-                 id uuid primary key,
-                 username text not null,
-             )"#,
+                         id uuid primary key,
+                         username text not null,
+                       )"#,
                     [],
                 )?;
+
                 conn.execute(r#"create table if not exists credentials ()"#, [])?;
 
                 Ok::<_, rusqlite::Error>(())
@@ -74,19 +66,30 @@ impl App {
             .await
     }
 
-    pub async fn get_credentials() -> Result<(), rusqlite::Error> {
-        Ok(())
+    pub async fn get_user_with_credentials(
+        &self,
+        _username: String,
+    ) -> Result<UserWithCredentials, AppError> {
+        todo!()
     }
 
-    pub async fn add_credential() -> Result<(), rusqlite::Error> {
-        Ok(())
+    pub async fn add_credential(
+        &self,
+        _username: String,
+        _credential: Passkey,
+    ) -> Result<(), AppError> {
+        todo!()
     }
 
-    pub async fn update_credential() -> Result<(), rusqlite::Error> {
-        Ok(())
+    pub async fn increment_credential_counter(
+        &self,
+        _cred_id: &CredentialID,
+        _counter: u32,
+    ) -> Result<(), AppError> {
+        todo!()
     }
 
-    pub async fn delete_credential() -> Result<(), rusqlite::Error> {
-        Ok(())
+    pub async fn delete_credential(&self, _cred_id: CredentialID) -> Result<(), AppError> {
+        todo!()
     }
 }

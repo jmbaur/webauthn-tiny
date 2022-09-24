@@ -1,24 +1,15 @@
 use crate::app;
 
-use app::persist;
 use app::SharedAppState;
-use argon2::Argon2;
-use argon2::PasswordHash;
-use argon2::PasswordVerifier;
 use async_trait::async_trait;
-use axum::{
-    extract::{self, FromRequest, Path, RequestParts},
-    http::{
-        header::{self, AUTHORIZATION},
-        HeaderMap, StatusCode,
-    },
-    response::IntoResponse,
-    Extension,
-};
-use axum_auth::AuthBasic;
+use axum::extract::FromRequest;
+use axum::extract::Path;
+use axum::extract::RequestParts;
+use axum::Json;
+use axum::{extract, http::StatusCode, response::IntoResponse, Extension};
+use axum_macros::debug_handler;
 use axum_sessions::extractors::ReadableSession;
 use axum_sessions::extractors::WritableSession;
-use serde::Serialize;
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
 use webauthn_rs_proto::CreationChallengeResponse;
@@ -27,31 +18,31 @@ use webauthn_rs_proto::PublicKeyCredential;
 use webauthn_rs_proto::RegisterPublicKeyCredential;
 use webauthn_rs_proto::RequestChallengeResponse;
 
-pub struct MyBasicAuth(AuthBasic);
+#[derive(Clone, Debug)]
+pub struct XRemoteUser(String);
 
 #[async_trait]
-impl<B: Send> FromRequest<B> for MyBasicAuth {
-    type Rejection = (HeaderMap, StatusCode);
+impl<B> FromRequest<B> for XRemoteUser
+where
+    B: Send,
+{
+    type Rejection = StatusCode;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        if req.headers().get(AUTHORIZATION).is_some() {
-            if let Ok(auth_basic) = AuthBasic::from_request(req).await {
-                Ok(Self(auth_basic))
+        if let Some(x_remote_user) = req.headers().get("x-remote-user") {
+            if let Ok(val) = x_remote_user.to_str() {
+                Ok(XRemoteUser(String::from(val)))
             } else {
-                Err((HeaderMap::new(), StatusCode::INTERNAL_SERVER_ERROR))
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         } else {
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                header::WWW_AUTHENTICATE,
-                "Basic".parse().expect("failed to parse header value"),
-            );
-            Err((headers, StatusCode::UNAUTHORIZED))
+            Err(StatusCode::UNAUTHORIZED)
         }
     }
 }
 
-pub async fn validate_handler(session: ReadableSession) -> impl IntoResponse {
+#[debug_handler]
+pub async fn validate_handler(session: ReadableSession) -> StatusCode {
     if session.get::<bool>("logged_in").unwrap_or(false) {
         StatusCode::OK
     } else {
@@ -59,212 +50,165 @@ pub async fn validate_handler(session: ReadableSession) -> impl IntoResponse {
     }
 }
 
+#[debug_handler]
 pub async fn register_start_handler(
-    MyBasicAuth(AuthBasic((username, password))): MyBasicAuth,
+    XRemoteUser(username): XRemoteUser,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> impl IntoResponse {
-    let mut state = shared_state.write().expect("failed to lock state");
-    let user = match state.users.get(&username) {
-        Some(hash) => match passwords_match(password, hash.to_owned()) {
-            true => match state.credentials.get(&username) {
-                Some(user) => user,
-                None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-            },
-            false => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-        },
-        None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-    };
-
-    let existing_credentials: Vec<CredentialID> = user
-        .credentials
-        .iter()
-        .map(|c| c.cred_id().to_owned())
-        .collect();
+) -> Result<Json<CreationChallengeResponse>, StatusCode> {
+    let mut state = shared_state.write().await;
+    let user = state.get_user_with_credentials(username).await?;
 
     let (req_chal, passkey_reg) = match webauthn.start_passkey_registration(
         user.id,
-        &username,
-        &username,
-        Some(existing_credentials),
+        &user.username,
+        &user.username, // use username as display name
+        Some(
+            user.credentials
+                .iter()
+                .map(|c| c.cred_id().to_owned())
+                .collect(),
+        ),
     ) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("failed to start passkey registration: {}", e);
-            return (StatusCode::UNAUTHORIZED, String::from("{}"));
+            eprintln!("webauthn.start_passkey_registration: {e}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
 
     state
         .in_progress_registrations
-        .insert(username.clone(), passkey_reg);
+        .insert(user.username, passkey_reg);
 
-    #[derive(Serialize)]
-    struct Return {
-        username: String,
-        challenge_response: CreationChallengeResponse,
-    }
-
-    match serde_json::to_string(&Return {
-        username,
-        challenge_response: req_chal,
-    }) {
-        Ok(j) => (StatusCode::OK, j),
-        Err(e) => {
-            eprintln!("failed to serialize JSON: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, String::from("{}"))
-        }
-    }
+    Ok(Json(req_chal))
 }
 
+#[debug_handler]
 pub async fn register_end_handler(
-    Path(username): Path<String>,
+    XRemoteUser(username): XRemoteUser,
     payload: extract::Json<RegisterPublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> impl IntoResponse {
-    let mut state = shared_state.write().expect("failed to lock state");
+) -> Result<(), StatusCode> {
+    let mut state = shared_state.write().await;
 
     let passkey_reg = match state.in_progress_registrations.get(&username) {
         Some(r) => r,
-        None => return StatusCode::NOT_FOUND,
+        None => return Err(StatusCode::NOT_FOUND),
     };
 
     let passkey = match webauthn.finish_passkey_registration(&payload, passkey_reg) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("{e}");
-            return StatusCode::UNAUTHORIZED;
+            eprintln!("webauthn.finish_passkey_registration: {e}");
+            return Err(StatusCode::UNAUTHORIZED);
         }
     };
 
-    let user = match state.credentials.get_mut(&username) {
-        Some(u) => u,
-        None => return StatusCode::NOT_FOUND,
-    };
+    let user = state.get_user_with_credentials(username.clone()).await?;
 
     if user
         .credentials
         .iter()
-        .any(|c| c.cred_id() == passkey.cred_id())
+        .any(|c| *c.cred_id() == *passkey.cred_id())
     {
         eprintln!("credential already registered");
-        return StatusCode::BAD_REQUEST;
+        return Err(StatusCode::BAD_REQUEST);
     }
 
-    user.credentials.push(passkey);
+    state.add_credential(username, passkey).await?;
 
-    if let Err(e) = persist(&state.credential_file, &state.credentials) {
-        eprintln!("{e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
+    state.in_progress_registrations.remove(&user.username);
 
-    StatusCode::OK
+    Ok(())
 }
 
+#[debug_handler]
 pub async fn authenticate_start_handler(
-    MyBasicAuth(AuthBasic((username, password))): MyBasicAuth,
+    XRemoteUser(username): XRemoteUser,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> impl IntoResponse {
-    let mut state = shared_state.write().expect("failed to lock state");
-    let user = match state.users.get(&username) {
-        Some(hash) => match passwords_match(password, hash.to_owned()) {
-            true => match state.credentials.get(&username) {
-                Some(user) => user,
-                None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-            },
-            false => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-        },
-        None => return (StatusCode::UNAUTHORIZED, String::from("{}")),
-    };
+) -> Result<Json<RequestChallengeResponse>, StatusCode> {
+    let mut state = shared_state.write().await;
 
+    let user = state.get_user_with_credentials(username).await?;
     if user.credentials.is_empty() {
-        return (StatusCode::UNAUTHORIZED, String::from("{}"));
+        return Err(StatusCode::UNAUTHORIZED);
     }
 
     let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&user.credentials) {
         Ok(a) => a,
         Err(e) => {
-            eprintln!("failed to start passkey authentication: {}", e);
-            return (StatusCode::UNAUTHORIZED, String::from("{}"));
+            eprintln!("webauthn.start_passkey_authentication: {e}");
+            return Err(StatusCode::UNAUTHORIZED);
         }
     };
 
     state
         .in_progress_authentications
-        .insert(username.clone(), passkey_auth);
+        .insert(user.username, passkey_auth);
 
-    #[derive(Serialize)]
-    struct Return {
-        username: String,
-        challenge_response: RequestChallengeResponse,
-    }
-
-    match serde_json::to_string(&Return {
-        username,
-        challenge_response: req_chal,
-    }) {
-        Ok(j) => (StatusCode::OK, j),
-        Err(e) => {
-            eprintln!("failed to serialize JSON: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, String::from("{}"))
-        }
-    }
+    Ok(Json(req_chal))
 }
 
+#[debug_handler]
 pub async fn authenticate_end_handler(
+    XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
-    Path(username): Path<String>,
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> impl IntoResponse {
-    let mut state = shared_state.write().expect("failed to lock state");
+) -> Result<(), StatusCode> {
+    let mut state = shared_state.write().await;
 
-    let passkey = match state.in_progress_authentications.get(&username) {
+    let passkey_authentication = match state.in_progress_authentications.get(&username) {
         Some(p) => p,
-        None => return StatusCode::NO_CONTENT,
+        None => return Err(StatusCode::NO_CONTENT),
     };
 
-    let auth_result = match webauthn.finish_passkey_authentication(&payload.0, passkey) {
-        Ok(a) => a,
-        Err(e) => {
-            eprintln!("{e}");
-            return StatusCode::UNAUTHORIZED;
-        }
-    };
+    let auth_result =
+        match webauthn.finish_passkey_authentication(&payload.0, passkey_authentication) {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("webauthn.finish_passkey_authentication: {e}");
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        };
 
-    let cred_state = match state.credentials.get_mut(&username) {
-        Some(c) => c,
-        None => return StatusCode::UNAUTHORIZED,
-    };
+    if auth_result.needs_update() {
+        state
+            .increment_credential_counter(auth_result.cred_id(), auth_result.counter())
+            .await?;
+    }
 
     if let Err(e) = session.insert("logged_in", true) {
-        eprintln!("{e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        eprintln!("session.insert: {e}");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    if auth_result.counter() > 0 {
-        cred_state.credentials.iter_mut().for_each(|c| {
-            if c.cred_id() == auth_result.cred_id() {
-                c.update_credential(&auth_result);
-            }
-        });
-    }
+    state.in_progress_authentications.remove(&username);
 
-    if let Err(e) = persist(&state.credential_file, &state.credentials) {
-        eprintln!("{e}");
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
-
-    StatusCode::OK
+    Ok(())
 }
 
+#[debug_handler]
 pub async fn get_credentials_handler() -> impl IntoResponse {
-    StatusCode::OK
+    todo!()
 }
 
-pub async fn delete_credentials_handler() -> impl IntoResponse {
-    StatusCode::OK
+#[debug_handler]
+pub async fn delete_credentials_handler(
+    Path(id): Path<String>,
+    session: ReadableSession,
+    shared_state: Extension<SharedAppState>,
+) -> Result<(), StatusCode> {
+    // TODO(jared): pull this out into a middleware
+    if !session.get::<bool>("logged_in").unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let cred_id = CredentialID::from(id.as_bytes().to_vec());
+    let state = shared_state.read().await;
+    Ok(state.delete_credential(cred_id).await?)
 }
