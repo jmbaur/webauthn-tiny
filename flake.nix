@@ -41,8 +41,8 @@
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
-        buildInputs = [ pkgs.sqlite ];
-        inherit (pkgs.webauthn-tiny) PKG_CONFIG_PATH nativeBuildInputs;
+        buildInputs = pkgs.webauthn-tiny.buildInputs ++ [ pkgs.sqlite ];
+        inherit (pkgs.webauthn-tiny) nativeBuildInputs;
         inherit (preCommitHooks) shellHook;
       };
     });

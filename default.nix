@@ -17,10 +17,6 @@ rustPlatform.buildRustPackage {
   src = ./.;
   cargoLock.lockFile = ./Cargo.lock;
   ASSETS_PATH = "${assets}";
-  PKG_CONFIG_PATH = lib.concatMapStringsSep ":" (drv: "${drv}/lib/pkgconfig") [
-    sqlite.dev
-    openssl.dev
-    systemd.dev
-  ];
+  buildInputs = [ sqlite openssl systemd ];
   nativeBuildInputs = [ pkg-config ];
 }

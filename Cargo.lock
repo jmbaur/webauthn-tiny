@@ -1826,6 +1826,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "tokio-rusqlite",
+ "uuid",
  "webauthn-rs",
  "webauthn-rs-proto",
 ]

@@ -20,5 +20,6 @@ serde_json = "1.0.85"
 serde_yaml = "0.9.11"
 tokio = { version = "1.21.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
+uuid = "1.1.2"
 webauthn-rs = "0.4.6"
 webauthn-rs-proto = "0.4.6"

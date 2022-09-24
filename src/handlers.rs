@@ -6,7 +6,7 @@ use axum::extract::{FromRequest, Path, RequestParts};
 use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
 use webauthn_rs_proto::{
@@ -74,7 +74,7 @@ pub async fn register_start_handler(
         Some(
             user.credentials
                 .iter()
-                .map(|c| c.cred_id().to_owned())
+                .map(|c| c.credential.cred_id().to_owned())
                 .collect(),
         ),
     ) {
@@ -92,10 +92,16 @@ pub async fn register_start_handler(
     Ok(Json(req_chal))
 }
 
+#[derive(Deserialize)]
+pub struct RegisterEndRequestPayload {
+    credential_name: String,
+    public_key: RegisterPublicKeyCredential,
+}
+
 #[debug_handler]
 pub async fn register_end_handler(
     XRemoteUser(username): XRemoteUser,
-    payload: extract::Json<RegisterPublicKeyCredential>,
+    payload: extract::Json<RegisterEndRequestPayload>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<(), StatusCode> {
@@ -106,7 +112,7 @@ pub async fn register_end_handler(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
-    let passkey = match webauthn.finish_passkey_registration(&payload, passkey_reg) {
+    let passkey = match webauthn.finish_passkey_registration(&payload.public_key, passkey_reg) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("webauthn.finish_passkey_registration: {e}");
@@ -119,13 +125,15 @@ pub async fn register_end_handler(
     if user
         .credentials
         .iter()
-        .any(|c| *c.cred_id() == *passkey.cred_id())
+        .any(|c| *c.credential.cred_id() == *passkey.cred_id())
     {
         eprintln!("credential already registered");
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    state.add_credential(username, passkey).await?;
+    state
+        .add_credential(username, payload.credential_name.clone(), passkey)
+        .await?;
 
     state.in_progress_registrations.remove(&user.username);
 
@@ -145,7 +153,12 @@ pub async fn authenticate_start_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&user.credentials) {
+    let passkeys: Vec<_> = user
+        .credentials
+        .iter()
+        .map(|c| c.credential.to_owned())
+        .collect();
+    let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&passkeys) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("webauthn.start_passkey_authentication: {e}");
@@ -185,9 +198,7 @@ pub async fn authenticate_end_handler(
         };
 
     if auth_result.needs_update() {
-        state
-            .increment_credential_counter(auth_result.cred_id(), auth_result.counter())
-            .await?;
+        state.update_credential(&auth_result).await?;
     }
 
     if let Err(e) = session.insert("logged_in", true) {
@@ -201,13 +212,13 @@ pub async fn authenticate_end_handler(
 }
 
 #[derive(Serialize)]
-pub struct GetCredentialsResponse {
+pub struct GetCredentialsResponsePayload {
     credentials: Vec<(CredentialID, String)>,
 }
 
 #[debug_handler]
-pub async fn get_credentials_handler() -> Result<Json<GetCredentialsResponse>, StatusCode> {
-    Ok(Json(GetCredentialsResponse {
+pub async fn get_credentials_handler() -> Result<Json<GetCredentialsResponsePayload>, StatusCode> {
+    Ok(Json(GetCredentialsResponsePayload {
         credentials: vec![],
     }))
 }
