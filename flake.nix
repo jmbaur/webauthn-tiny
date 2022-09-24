@@ -9,7 +9,7 @@
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
       webauthn-tiny = prev.callPackage ./. {
-        assets = prev.mkYarnPackage {
+        web-ui = prev.mkYarnPackage {
           src = ./.;
           buildPhase = "yarn build";
           installPhase = "cp -r deps/webauthn-tiny-client/dist $out";

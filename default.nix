@@ -2,8 +2,8 @@
 , pkg-config
 , openssl
 , sqlite
-, assets
 , lib
+, web-ui
 , ...
 }:
 let
@@ -15,7 +15,7 @@ rustPlatform.buildRustPackage {
   inherit pname version;
   src = ./.;
   cargoLock.lockFile = ./Cargo.lock;
-  ASSETS_PATH = "${assets}";
   buildInputs = [ sqlite openssl ];
   nativeBuildInputs = [ pkg-config ];
+  passthru = { inherit web-ui; };
 }

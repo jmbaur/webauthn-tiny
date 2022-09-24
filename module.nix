@@ -27,7 +27,7 @@ in
           auth_basic off;
         '';
         locations."/" = {
-          root = "${pkgs.webauthn-tiny-client}";
+          root = "${pkgs.webauthn-tiny.web-ui}";
           tryFiles = "$uri /index.html =404";
         };
         locations."/api" = {
