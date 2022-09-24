@@ -2,7 +2,6 @@
 , pkg-config
 , openssl
 , sqlite
-, systemd
 , assets
 , lib
 , ...
@@ -17,6 +16,6 @@ rustPlatform.buildRustPackage {
   src = ./.;
   cargoLock.lockFile = ./Cargo.lock;
   ASSETS_PATH = "${assets}";
-  buildInputs = [ sqlite openssl systemd ];
+  buildInputs = [ sqlite openssl ];
   nativeBuildInputs = [ pkg-config ];
 }
