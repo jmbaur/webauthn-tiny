@@ -198,7 +198,7 @@ pub async fn authenticate_end_handler(
         };
 
     if auth_result.needs_update() {
-        state.update_credential(&auth_result).await?;
+        state.update_credential(auth_result).await?;
     }
 
     if let Err(e) = session.insert("logged_in", true) {

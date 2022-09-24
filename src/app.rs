@@ -1,6 +1,6 @@
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use webauthn_rs::prelude::{
@@ -16,6 +16,14 @@ pub struct CredentialState {
 
 #[derive(Debug)]
 pub struct AppError;
+
+impl Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AppError")
+    }
+}
+
+impl std::error::Error for AppError {}
 
 impl From<AppError> for StatusCode {
     fn from(_error: AppError) -> Self {
@@ -64,17 +72,17 @@ pub struct UserWithCredentials {
 }
 
 impl App {
-    pub fn new(db: Connection, id: String, origin: String) -> anyhow::Result<Self> {
-        Ok(Self {
+    pub fn new(db: Connection, id: String, origin: String) -> Self {
+        Self {
             db,
             id,
             in_progress_authentications: HashMap::new(),
             in_progress_registrations: HashMap::new(),
             origin,
-        })
+        }
     }
 
-    pub async fn init(&self) -> Result<(), rusqlite::Error> {
+    pub async fn init(&self) -> Result<(), AppError> {
         self.db
             .call(|conn| {
                 conn.execute(
@@ -96,7 +104,7 @@ impl App {
                     [],
                 )?;
 
-                Ok::<_, rusqlite::Error>(())
+                Ok::<_, AppError>(())
             })
             .await
     }
@@ -156,33 +164,58 @@ impl App {
                 return Err(AppError);
             }
         };
-        if let Err(e) = self
-            .db
+        self.db
             .call(|conn| {
                 conn.execute(
                     r#"insert into credentials (name, user, value)
-                       values (?1, (select id from users where username = ?2), ?3)"#,
+                       values (?1, (select id from users where username = ?2), json(?3))"#,
                     (credential_name, username, value),
                 )?;
-                Ok::<_, rusqlite::Error>(())
+                Ok::<_, AppError>(())
             })
             .await
-        {
-            eprintln!("add_credential: {e}");
-            return Err(AppError);
-        }
-
-        Ok(())
     }
 
     pub async fn update_credential(
         &self,
-        auth_result: &AuthenticationResult,
+        auth_result: AuthenticationResult,
     ) -> Result<(), AppError> {
-        todo!()
+        self.db
+            .call(move |conn| {
+                let cred_id = auth_result.cred_id().to_string();
+                let cred_json: String = conn.query_row(
+                    r#"select value from credentials
+                       where value->>'$.cred_id' = ?1"#,
+                    (auth_result.cred_id().to_string(),),
+                    |row| row.get(0),
+                )?;
+
+                let mut credential = serde_json::from_str::<Passkey>(&cred_json)?;
+                if credential.update_credential(&auth_result).is_none() {
+                    return Err(AppError); // TODO(jared): credential ID did not match
+                }
+
+                let cred_json = serde_json::to_string(&credential)?;
+                conn.execute(
+                    r#"update credentials set value = ?1
+                       where value->>'$.cred_id' = ?2"#,
+                    (cred_json, cred_id),
+                )?;
+
+                Ok::<_, AppError>(())
+            })
+            .await
     }
 
-    pub async fn delete_credential(&self, _cred_id: CredentialID) -> Result<(), AppError> {
-        todo!()
+    pub async fn delete_credential(&self, cred_id: CredentialID) -> Result<(), AppError> {
+        self.db
+            .call(move |conn| {
+                conn.execute(
+                    r#"delete from credentials where value->>cred_id = ?1"#,
+                    (cred_id.to_string(),),
+                )?;
+                Ok::<_, AppError>(())
+            })
+            .await
     }
 }

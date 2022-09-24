@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     db_path.push("webauthn-tiny.db");
     let db = Connection::open(db_path).await?;
 
-    let app = App::new(db, cli.id, cli.url)?;
+    let app = App::new(db, cli.id, cli.url);
     app.init().await?;
 
     let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
