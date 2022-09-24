@@ -54,12 +54,22 @@ impl App {
                 conn.execute(
                     r#"create table if not exists users (
                          id uuid primary key,
-                         username text not null,
+                         username text not null
                        )"#,
                     [],
                 )?;
 
-                conn.execute(r#"create table if not exists credentials ()"#, [])?;
+                conn.execute(
+                    r#"create table if not exists credentials (
+                         value json
+                       )"#,
+                    [],
+                )?;
+
+                conn.execute(
+                    r#"insert into users (id, username) values (?1, ?2)"#,
+                    (Uuid::new_v4().to_string(), "foobar"),
+                )?;
 
                 Ok::<_, rusqlite::Error>(())
             })

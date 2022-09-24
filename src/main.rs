@@ -13,7 +13,7 @@ use handlers::{
     get_credentials_handler, register_end_handler, register_start_handler, validate_handler,
 };
 use rand_core::{OsRng, RngCore};
-use std::{env, path::PathBuf, sync::Arc};
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use webauthn_rs::{prelude::Url, WebauthnBuilder};
@@ -21,8 +21,8 @@ use webauthn_rs::{prelude::Url, WebauthnBuilder};
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Cli {
-    #[clap(default_value_t = String::from("[::]:8080"), value_parser)]
-    address: String,
+    #[clap(long,value_parser, default_value_t = ("[::]:8080").parse().expect("invalid address"))]
+    address: SocketAddr,
     #[clap(long, value_parser)]
     id: String,
     #[clap(long, value_parser)]
@@ -66,11 +66,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(Extension(Arc::new(RwLock::new(app))))
         .layer(Extension(Arc::new(webauthn)));
 
-    let sock_addr: std::net::SocketAddr = cli.address.parse()?;
-    eprintln!("listening on {}", sock_addr);
-    Server::bind(&sock_addr)
+    eprintln!("listening on {}", cli.address);
+    Ok(Server::bind(&cli.address)
         .serve(router.into_make_service())
-        .await?;
-
-    Ok(())
+        .await?)
 }
