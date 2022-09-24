@@ -3,6 +3,7 @@ mod handlers;
 
 use app::App;
 use axum::{
+    middleware,
     routing::{delete, get},
     Extension, Router, Server,
 };
@@ -10,7 +11,7 @@ use axum_sessions::{async_session::MemoryStore, SessionLayer};
 use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_handler,
-    get_credentials_handler, register_end_handler, register_start_handler, validate_handler,
+    get_credentials_handler, register_end_handler, register_start_handler, RequireLoggedIn,
 };
 use rand_core::{OsRng, RngCore};
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -50,13 +51,29 @@ async fn main() -> anyhow::Result<()> {
     let app = App::new(db, cli.id, cli.url)?;
     app.init().await?;
 
+    let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
+
     let router = Router::new()
-        .route("/validate", get(validate_handler))
-        .route("/api/credentials", get(get_credentials_handler))
-        .route("/api/credentials/:id", delete(delete_credentials_handler))
+        .route(
+            "/validate",
+            get(|| async {
+                // returns empty 200 as long as the middleware passes
+            })
+            .layer(require_logged_in.clone()),
+        )
+        .route(
+            "/api/credentials",
+            get(get_credentials_handler).layer(require_logged_in.clone()),
+        )
+        .route(
+            "/api/credentials/:id",
+            delete(delete_credentials_handler).layer(require_logged_in.clone()),
+        )
         .route(
             "/api/register",
-            get(register_start_handler).post(register_end_handler),
+            get(register_start_handler)
+                .post(register_end_handler)
+                .layer(require_logged_in),
         )
         .route(
             "/api/authenticate",

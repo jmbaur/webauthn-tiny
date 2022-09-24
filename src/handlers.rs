@@ -2,23 +2,40 @@ use crate::app;
 
 use app::SharedAppState;
 use async_trait::async_trait;
-use axum::extract::FromRequest;
-use axum::extract::Path;
-use axum::extract::RequestParts;
-use axum::Json;
-use axum::{extract, http::StatusCode, response::IntoResponse, Extension};
+use axum::extract::{FromRequest, Path, RequestParts};
+use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
-use axum_sessions::extractors::ReadableSession;
-use axum_sessions::extractors::WritableSession;
+use axum_sessions::extractors::{ReadableSession, WritableSession};
+use serde::Serialize;
 use std::sync::Arc;
 use webauthn_rs::Webauthn;
-use webauthn_rs_proto::CreationChallengeResponse;
-use webauthn_rs_proto::CredentialID;
-use webauthn_rs_proto::PublicKeyCredential;
-use webauthn_rs_proto::RegisterPublicKeyCredential;
-use webauthn_rs_proto::RequestChallengeResponse;
+use webauthn_rs_proto::{
+    CreationChallengeResponse, CredentialID, PublicKeyCredential, RegisterPublicKeyCredential,
+    RequestChallengeResponse,
+};
 
-#[derive(Clone, Debug)]
+pub struct RequireLoggedIn;
+
+#[async_trait]
+impl<B> FromRequest<B> for RequireLoggedIn
+where
+    B: Send,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        if let Ok(session) = ReadableSession::from_request(req).await {
+            if session.get::<bool>("logged_in").unwrap_or(false) {
+                Ok(Self)
+            } else {
+                Err(StatusCode::UNAUTHORIZED)
+            }
+        } else {
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 pub struct XRemoteUser(String);
 
 #[async_trait]
@@ -38,15 +55,6 @@ where
         } else {
             Err(StatusCode::UNAUTHORIZED)
         }
-    }
-}
-
-#[debug_handler]
-pub async fn validate_handler(session: ReadableSession) -> StatusCode {
-    if session.get::<bool>("logged_in").unwrap_or(false) {
-        StatusCode::OK
-    } else {
-        StatusCode::UNAUTHORIZED
     }
 }
 
@@ -192,22 +200,23 @@ pub async fn authenticate_end_handler(
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct GetCredentialsResponse {
+    credentials: Vec<(CredentialID, String)>,
+}
+
 #[debug_handler]
-pub async fn get_credentials_handler() -> impl IntoResponse {
-    todo!()
+pub async fn get_credentials_handler() -> Result<Json<GetCredentialsResponse>, StatusCode> {
+    Ok(Json(GetCredentialsResponse {
+        credentials: vec![],
+    }))
 }
 
 #[debug_handler]
 pub async fn delete_credentials_handler(
     Path(id): Path<String>,
-    session: ReadableSession,
     shared_state: Extension<SharedAppState>,
 ) -> Result<(), StatusCode> {
-    // TODO(jared): pull this out into a middleware
-    if !session.get::<bool>("logged_in").unwrap_or(false) {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
     let cred_id = CredentialID::from(id.as_bytes().to_vec());
     let state = shared_state.read().await;
     Ok(state.delete_credential(cred_id).await?)
