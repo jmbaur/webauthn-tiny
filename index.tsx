@@ -56,9 +56,15 @@ function App() {
   React.useEffect(() => {
     if (!window.PublicKeyCredential) return;
 
+    const params = new URLSearchParams(window.location.search);
+    let redirect_url = params.get("url");
+
     setLoading(true);
     checkIfAuthenticated().then((isAuthenticated) => {
       if (isAuthenticated) {
+        if (redirect_url !== null) {
+          window.location.replace(redirect_url);
+        }
         setAuthenticated(true);
         setLoading(false);
       } else {
