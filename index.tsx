@@ -47,7 +47,7 @@ async function getCredentials(): Promise<Array<Credential>> {
 }
 
 function App() {
-  const [loading, setLoading] = React.useState<boolean>(false);
+  const [loading, setLoading] = React.useState<boolean>(true);
   const [authenticated, setAuthenticated] = React.useState<boolean>(false);
   const [refresh, setRefresh] = React.useState<boolean>(true);
   const [newCredential, setNewCredential] = React.useState<string>("");

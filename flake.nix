@@ -8,6 +8,7 @@
   };
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
+      dev = prev.callPackage ./dev { };
       webauthn-tiny = prev.callPackage ./. {
         web-ui = prev.mkYarnPackage {
           src = ./.;
@@ -44,9 +45,13 @@
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
-        inherit (pkgs.webauthn-tiny) nativeBuildInputs RUSTFLAGS;
+        inherit (pkgs.webauthn-tiny) RUSTFLAGS;
         WEBAUTHN_TINY_LOG = "debug";
-        buildInputs = pkgs.webauthn-tiny.buildInputs ++ pkgs.webauthn-tiny.web-ui.buildInputs;
+        nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs
+          ++ pkgs.dev.nativeBuildInputs;
+        buildInputs = pkgs.webauthn-tiny.buildInputs
+          ++ pkgs.webauthn-tiny.web-ui.buildInputs
+          ++ [ pkgs.dev ];
       };
     });
 }

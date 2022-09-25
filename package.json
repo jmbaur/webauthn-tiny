@@ -5,8 +5,9 @@
   "license": "MIT",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
-    "check": "tsc --noEmit",
-    "build": "bash webui-build.bash"
+    "dev": "dev -serve",
+    "build": "dev -build",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@github/webauthn-json": "^2.0.1",
