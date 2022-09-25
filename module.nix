@@ -24,13 +24,6 @@ in
       };
       nginx = {
         enable = lib.mkEnableOption "nginx support";
-        basePath = lib.mkOption {
-          type = lib.types.str;
-          description = ''
-            The base path that will be prepended to each location for this service.
-          '';
-          default = "/auth";
-        };
         virtualHost = lib.mkOption {
           type = lib.types.str;
           description = ''
@@ -52,34 +45,58 @@ in
           '';
           default = null;
         };
+        protectedVirtualHosts = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          description = ''
+          '';
+          default = [ ];
+        };
       };
     };
   };
   config = lib.mkIf cfg.enable {
     services.nginx = lib.mkIf cfg.nginx.enable {
       enable = true;
-      virtualHosts.${cfg.nginx.virtualHost} =
-        let
-          withProxy = { extraConfig ? "", ... }@args: args // {
-            proxyPass = "http://[::1]:8080";
-            extraConfig = extraConfig + ''
-              proxy_set_header Host            $host;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-              proxy_set_header X-Remote-User   $remote_user;
+      virtualHosts = lib.genAttrs
+        (_: {
+          extraConfig = ''
+            auth_request /auth;
+            error_page 401 = @error401;
+          '';
+          locations."= /auth" = {
+            proxyPass = "http://[::1]:8080/api/validate";
+            extraConfig = ''
+              proxy_pass_request_body off;
+              proxy_set_header Content-Length "";
+              proxy_set_header X-Original-URI $request_uri;
             '';
           };
-        in
-        {
-          forceSSL = true; # webauthn is only available over HTTPS
-          locations."= /api/validate" = withProxy { };
-          locations."/api" = withProxy {
-            inherit (cfg.nginx) basicAuthFile basicAuth;
+          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/?url=https://$http_host&request_uri";
+        })
+        cfg.nginx.protectedVirtualHosts // {
+        ${cfg.nginx.virtualHost} =
+          let
+            withProxy = { extraConfig ? "", ... }@args: args // {
+              proxyPass = "http://[::1]:8080";
+              extraConfig = extraConfig + ''
+                proxy_set_header Host            $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Remote-User   $remote_user;
+              '';
+            };
+          in
+          {
+            forceSSL = true; # webauthn is only available over HTTPS
+            locations."= /api/validate" = withProxy { };
+            locations."/api" = withProxy {
+              inherit (cfg.nginx) basicAuthFile basicAuth;
+            };
+            locations."/" = {
+              root = "${pkgs.webauthn-tiny.web-ui}";
+              tryFiles = "$uri /index.html =404";
+            };
           };
-          locations."/" = {
-            root = "${pkgs.webauthn-tiny.web-ui}";
-            tryFiles = "$uri /index.html =404";
-          };
-        };
+      };
     };
 
     systemd.services.webauthn-tiny = {
