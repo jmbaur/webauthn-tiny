@@ -6,7 +6,7 @@
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
     "dev": "godev -serve",
-    "build": "godev -build",
+    "build": "godev -build && cp favicon.ico dist/favicon.ico",
     "check": "tsc --noEmit"
   },
   "dependencies": {
