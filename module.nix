@@ -60,7 +60,7 @@ in
       enable = true;
       virtualHosts.${cfg.nginx.virtualHost} =
         let
-          withProxy = { extraConfig ? "" }@args: args // {
+          withProxy = { extraConfig ? "", ... }@args: args // {
             proxyPass = "http://[::1]:8080";
             extraConfig = extraConfig + ''
               proxy_set_header Host            $host;
