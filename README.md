@@ -25,4 +25,4 @@ webauthn-tiny --id mywebsite.com --origin https://auth.mywebsite.com
 
 ### Nginx
 
-See ./module.nix for an example nginx configuration.
+See [module.nix](module.nix) for an example nginx configuration.
