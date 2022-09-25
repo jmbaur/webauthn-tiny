@@ -57,7 +57,7 @@ in
   config = lib.mkIf cfg.enable {
     services.nginx = lib.mkIf cfg.nginx.enable {
       enable = true;
-      virtualHosts = lib.genAttrs
+      virtualHosts = lib.genAttrs cfg.nginx.protectedVirtualHosts
         (_: {
           extraConfig = ''
             auth_request /auth;
@@ -72,8 +72,7 @@ in
             '';
           };
           locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/?url=https://$http_host&request_uri";
-        })
-        cfg.nginx.protectedVirtualHosts // {
+        }) // {
         ${cfg.nginx.virtualHost} =
           let
             withProxy = { extraConfig ? "", ... }@args: args // {
