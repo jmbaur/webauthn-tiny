@@ -116,54 +116,64 @@ function App() {
     }
   };
 
-  if (!loading) {
-    return (
-      <>
-        <h2>WebauthnTiny</h2>
-        {authenticated
-          ? (
-            <>
-              {window.PublicKeyCredential
-                ? (
-                  <>
-                    <div>
-                      <h4>add a new credential</h4>
-                      <form onSubmit={registerCredential}>
-                        <label>
-                          <input
-                            type="text"
-                            placeholder="name"
-                            value={newCredential}
-                            onChange={(e) => setNewCredential(e.target.value)}
-                          />
-                        </label>
-                        <input type="submit" value={"\u{002b}"} />
-                      </form>
-                    </div>
-                    <div>
-                      <h4>
-                        {credentials.length > 0
-                          ? <>existing credentials</>
-                          : <>no existing credentials</>}
-                      </h4>
-                      {credentials.map((cred) => (
-                        <div key={cred.id}>
-                          {cred.name}
-                          <button onClick={() => deleteCredential(cred.name)}>
-                            {"\u{2212}"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )
-                : <h4>this browser does not support webauthn</h4>}
-            </>
-          )
-          : <h4>you are not authenticated</h4>}
-      </>
-    );
-  }
+  return (
+    <React.Fragment>
+      {loading ? <React.Fragment></React.Fragment> : (
+        <React.Fragment>
+          <h2>WebauthnTiny</h2>
+          {authenticated
+            ? (
+              <React.Fragment>
+                {window.PublicKeyCredential
+                  ? (
+                    <React.Fragment>
+                      <div>
+                        <h4>add a new credential</h4>
+                        <form onSubmit={registerCredential}>
+                          <label>
+                            <input
+                              type="text"
+                              placeholder="name"
+                              value={newCredential}
+                              onChange={(e) => setNewCredential(e.target.value)}
+                            />
+                          </label>
+                          <input type="submit" value={"\u{002b}"} />
+                        </form>
+                      </div>
+                      <div>
+                        <h4>
+                          {credentials.length > 0
+                            ? (
+                              <React.Fragment>
+                                existing credentials
+                              </React.Fragment>
+                            )
+                            : (
+                              <React.Fragment>
+                                no existing credentials
+                              </React.Fragment>
+                            )}
+                        </h4>
+                        {credentials.map((cred) => (
+                          <div key={cred.id}>
+                            {cred.name}
+                            <button onClick={() => deleteCredential(cred.name)}>
+                              {"\u{2212}"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </React.Fragment>
+                  )
+                  : <h4>this browser does not support webauthn</h4>}
+              </React.Fragment>
+            )
+            : <h4>you are not authenticated</h4>}
+        </React.Fragment>
+      )}
+    </React.Fragment>
+  );
 }
 
 const container = document.getElementById("app");

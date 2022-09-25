@@ -11,8 +11,10 @@
       webauthn-tiny = prev.callPackage ./. {
         web-ui = prev.mkYarnPackage {
           src = ./.;
+          extraBuildInputs = [ prev.esbuild ];
+          checkPhase = "yarn check";
           buildPhase = "yarn build";
-          installPhase = "cp -r deps/webauthn-tiny-client/dist $out";
+          installPhase = "cp -r deps/webauthn-tiny-web-ui/dist $out";
           doDist = false;
         };
       };
@@ -44,9 +46,7 @@
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) nativeBuildInputs;
         WEBAUTHN_TINY_LOG = "debug";
-        buildInputs = pkgs.webauthn-tiny.buildInputs ++
-          pkgs.webauthn-tiny.web-ui.buildInputs ++
-          (with pkgs; [ sqlite ]);
+        buildInputs = pkgs.webauthn-tiny.buildInputs ++ pkgs.webauthn-tiny.web-ui.buildInputs;
       };
     });
 }
