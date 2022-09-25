@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.origin)?;
     let webauthn = WebauthnBuilder::new(&cli.id, &origin_url)?
-        .allow_subdomains(false)
+        .allow_subdomains(true)
         .build()?;
 
     let store = MemoryStore::new();
