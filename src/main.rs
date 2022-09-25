@@ -25,11 +25,11 @@ use webauthn_rs::{prelude::Url, WebauthnBuilder};
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Cli {
-    #[clap(long,value_parser, default_value_t = ("[::]:8080").parse().expect("invalid address"))]
+    #[clap(short, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
     address: SocketAddr,
-    #[clap(long, value_parser)]
+    #[clap(short, long, value_parser, help = "Relying Party ID")]
     id: String,
-    #[clap(long, value_parser)]
+    #[clap(short, long, value_parser, help = "Relying Party origin")]
     origin: String,
 }
 
