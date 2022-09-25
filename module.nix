@@ -4,28 +4,61 @@ let
 in
 {
   options = {
-    # TODO(jared): add descriptions to options
     services.webauthn-tiny = {
       enable = lib.mkEnableOption "webauthn-tiny server";
-      domain = lib.mkOption { type = lib.types.str; };
-      basicAuth = lib.mkOption {
-        type = lib.types.attrsOf lib.types.str;
-        default = { };
-      };
-      basicAuthFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-      };
       relyingParty = {
-        id = lib.mkOption { type = lib.types.str; };
-        origin = lib.mkOption { type = lib.types.str; };
+        id = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            TODO
+          '';
+          example = "mywebsite.com";
+        };
+        origin = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            TODO
+          '';
+          example = "https://mywebsite.com";
+        };
+      };
+      nginx = {
+        enable = lib.mkEnableOption "nginx support";
+        basePath = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            The base path that will be prepended to each location for this service.
+          '';
+          default = "/auth";
+        };
+        virtualHost = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            The virtual host that this service will serve on.
+          '';
+        };
+        basicAuth = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          description = ''
+            A static mapping of usernames to passwords. WARNING: only use this for testing purposes.
+          '';
+          default = { };
+          example = { myuser = "mypassword"; };
+        };
+        basicAuthFile = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          description = ''
+            A path to an htpasswd file.
+          '';
+          default = null;
+        };
       };
     };
   };
   config = lib.mkIf cfg.enable {
-    services.nginx = {
+    services.nginx = lib.mkIf cfg.nginx.enable {
       enable = true;
-      virtualHosts."${cfg.domain}" =
+      virtualHosts.${cfg.nginx.virtualHost} =
         let
           withProxy = { extraConfig ? "" }@args: args // {
             proxyPass = "http://[::1]:8080";
@@ -37,8 +70,8 @@ in
           };
         in
         {
-          inherit (cfg) basicAuthFile basicAuth;
-          locations."= /api/validate" = withProxy {
+          inherit (cfg.nginx) basicAuthFile basicAuth;
+          locations."= ${cfg.nginx.basePath}/api/validate" = withProxy {
             extraConfig = ''
               auth_basic off;
               proxy_set_header Host            $host;
@@ -46,9 +79,9 @@ in
               proxy_set_header X-Remote-User   $remote_user;
             '';
           };
-          locations."/api" = withProxy { };
-          locations."/" = {
-            root = "${pkgs.webauthn-tiny.web-ui}";
+          locations."${cfg.nginx.basePath}/api" = withProxy { };
+          locations.${cfg.nginx.basePath} = {
+            alias = "${pkgs.webauthn-tiny.web-ui}/";
             tryFiles = "$uri /index.html =404";
           };
         };
