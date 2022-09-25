@@ -44,7 +44,7 @@
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
-        inherit (pkgs.webauthn-tiny) nativeBuildInputs;
+        inherit (pkgs.webauthn-tiny) nativeBuildInputs RUSTFLAGS;
         WEBAUTHN_TINY_LOG = "debug";
         buildInputs = pkgs.webauthn-tiny.buildInputs ++ pkgs.webauthn-tiny.web-ui.buildInputs;
       };

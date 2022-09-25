@@ -1,4 +1,5 @@
 { rustPlatform
+, llvmPackages_latest
 , pkg-config
 , openssl
 , sqlite
@@ -14,8 +15,9 @@ in
 rustPlatform.buildRustPackage {
   inherit pname version;
   src = ./.;
+  RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
   cargoLock.lockFile = ./Cargo.lock;
   buildInputs = [ sqlite openssl ];
-  nativeBuildInputs = [ pkg-config ];
+  nativeBuildInputs = [ llvmPackages_latest.bintools pkg-config ];
   passthru = { inherit web-ui; };
 }
