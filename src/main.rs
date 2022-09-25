@@ -17,6 +17,9 @@ use rand_core::{OsRng, RngCore};
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
+use tower::ServiceBuilder;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use webauthn_rs::{prelude::Url, WebauthnBuilder};
 
 #[derive(Parser)]
@@ -27,13 +30,18 @@ struct Cli {
     #[clap(long, value_parser)]
     id: String,
     #[clap(long, value_parser)]
-    url: String,
+    origin: String,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_env("WEBAUTHN_TINY_LOG"))
+        .init();
+
     let cli = Cli::parse();
-    let origin_url = Url::parse(&cli.url)?;
+    let origin_url = Url::parse(&cli.origin)?;
     let webauthn = WebauthnBuilder::new(&cli.id, &origin_url)?
         .allow_subdomains(false)
         .build()?;
@@ -48,14 +56,14 @@ async fn main() -> anyhow::Result<()> {
     db_path.push("webauthn-tiny.db");
     let db = Connection::open(db_path).await?;
 
-    let app = App::new(db, cli.id, cli.url);
+    let app = App::new(db, cli.id, cli.origin);
     app.init().await?;
 
     let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
 
     let router = Router::new()
         .route(
-            "/validate",
+            "/api/validate",
             get(|| async {
                 // returns empty 200 as long as the middleware passes
             })
@@ -66,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
             get(get_credentials_handler).layer(require_logged_in.clone()),
         )
         .route(
-            "/api/credentials/:id",
+            "/api/credentials/:name",
             delete(delete_credentials_handler).layer(require_logged_in.clone()),
         )
         .route(
@@ -79,11 +87,15 @@ async fn main() -> anyhow::Result<()> {
             "/api/authenticate",
             get(authenticate_start_handler).post(authenticate_end_handler),
         )
-        .layer(session_layer)
-        .layer(Extension(Arc::new(RwLock::new(app))))
-        .layer(Extension(Arc::new(webauthn)));
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(session_layer)
+                .layer(Extension(Arc::new(RwLock::new(app))))
+                .layer(Extension(Arc::new(webauthn))),
+        );
 
-    eprintln!("listening on {}", cli.address);
+    tracing::debug!("listening on {}", cli.address);
     Ok(Server::bind(&cli.address)
         .serve(router.into_make_service())
         .await?)

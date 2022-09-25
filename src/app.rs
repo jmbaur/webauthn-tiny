@@ -1,4 +1,6 @@
 use axum::http::StatusCode;
+use libsqlite3_sys::ErrorCode::ConstraintViolation;
+use rusqlite::Error::{QueryReturnedNoRows, SqliteFailure};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
@@ -6,7 +8,6 @@ use tokio_rusqlite::Connection;
 use webauthn_rs::prelude::{
     AuthenticationResult, Passkey, PasskeyAuthentication, PasskeyRegistration, Uuid,
 };
-use webauthn_rs_proto::CredentialID;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CredentialState {
@@ -15,37 +16,66 @@ pub struct CredentialState {
 }
 
 #[derive(Debug)]
-pub struct AppError;
+pub enum AppError {
+    UserNotFound,
+    CredentialNotFound,
+    MismatchingCredentialID,
+    SqlError(rusqlite::Error),
+    SerdeError(serde_json::Error),
+    UuidError(uuid::Error),
+    UnknownError,
+}
 
 impl Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "AppError")
+        match self {
+            Self::SqlError(e) => write!(f, "{e}"),
+            Self::SerdeError(e) => write!(f, "{e}"),
+            Self::UuidError(e) => write!(f, "{e}"),
+            _ => write!(f, "AppError"), // TODO(jared): better display impl
+        }
     }
 }
 
 impl std::error::Error for AppError {}
 
+impl Default for AppError {
+    fn default() -> Self {
+        AppError::UnknownError
+    }
+}
+
 impl From<AppError> for StatusCode {
-    fn from(_error: AppError) -> Self {
-        StatusCode::INTERNAL_SERVER_ERROR
+    fn from(error: AppError) -> Self {
+        eprintln!("{:#?}", error);
+        match error {
+            AppError::SqlError(QueryReturnedNoRows) => StatusCode::NOT_FOUND,
+            AppError::SqlError(SqliteFailure(err, _)) => match err.code {
+                ConstraintViolation => StatusCode::BAD_REQUEST,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            },
+            AppError::UserNotFound => StatusCode::NOT_FOUND,
+            AppError::CredentialNotFound => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
 
 impl From<rusqlite::Error> for AppError {
-    fn from(_error: rusqlite::Error) -> Self {
-        todo!()
+    fn from(error: rusqlite::Error) -> Self {
+        AppError::SqlError(error)
     }
 }
 
 impl From<serde_json::Error> for AppError {
-    fn from(_error: serde_json::Error) -> Self {
-        todo!()
+    fn from(error: serde_json::Error) -> Self {
+        AppError::SerdeError(error)
     }
 }
 
 impl From<uuid::Error> for AppError {
-    fn from(_error: uuid::Error) -> Self {
-        todo!()
+    fn from(error: uuid::Error) -> Self {
+        AppError::UuidError(error)
     }
 }
 
@@ -59,16 +89,23 @@ pub struct App {
 
 pub type SharedAppState = Arc<RwLock<App>>;
 
+#[derive(Clone, Debug)]
 pub struct CredentialWithName {
     pub name: String,
     pub credential: Passkey,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct UserWithCredentials {
     pub id: Uuid,
     pub username: String,
     pub credentials: Vec<CredentialWithName>,
+}
+
+impl UserWithCredentials {
+    fn exists(&self) -> bool {
+        self.id != Uuid::default()
+    }
 }
 
 impl App {
@@ -119,34 +156,54 @@ impl App {
                     .prepare(
                         r#"select u.id, u.username, c.name, c.value
                            from users u
-                           join credentials c on u.id = c.user
+                           left join credentials c on u.id = c.user
                            where username = ?1"#,
                     )?
-                    .query_map((username,), |row| {
+                    .query_map((username.clone(),), |row| {
                         Ok((
                             row.get::<_, String>(0)?,
                             row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                            row.get::<_, String>(3)?,
+                            row.get::<_, Option<String>>(2)?,
+                            row.get::<_, Option<String>>(3)?,
                         ))
                     })?
                     .into_iter()
                     .filter_map(|v| if let Ok(v_ok) = v { Some(v_ok) } else { None })
                     .fold(UserWithCredentials::default(), |mut acc, curr| {
-                        if let Ok(id) = Uuid::from_slice(curr.0.as_bytes()) {
+                        if let Ok(id) = Uuid::from_slice(&curr.0.as_bytes()[..16]) {
                             acc.id = id;
                         }
-                        if let Ok(passkey) = serde_json::from_str::<Passkey>(&curr.3) {
-                            acc.credentials.push(CredentialWithName {
-                                name: curr.2,
-                                credential: passkey,
-                            });
+                        if curr.2.is_some() && curr.3.is_some() {
+                            if let Ok(passkey) =
+                                serde_json::from_str::<Passkey>(&curr.3.expect("is_some guard"))
+                            {
+                                acc.credentials.push(CredentialWithName {
+                                    name: curr.2.expect("is_some guard"),
+                                    credential: passkey,
+                                });
+                            }
                         }
                         acc.username = curr.1;
                         acc
                     });
 
-                Ok::<_, AppError>(user)
+                if user.exists() {
+                    return Ok::<_, AppError>(user);
+                }
+
+                let new_user = conn.query_row(
+                    r#"insert into users (id, username)
+                       values (?1, ?2)
+                       returning id, username"#,
+                    (Uuid::new_v4().to_string(), username),
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                )?;
+
+                Ok::<_, AppError>(UserWithCredentials {
+                    id: Uuid::from_slice(&new_user.0.as_bytes()[..16])?,
+                    username: new_user.1,
+                    credentials: vec![],
+                })
             })
             .await
     }
@@ -160,8 +217,8 @@ impl App {
         let value = match serde_json::to_string(&credential) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("add_credential: {e}");
-                return Err(AppError);
+                tracing::error!("add_credential: {e}");
+                return Err(AppError::UnknownError);
             }
         };
         self.db
@@ -185,20 +242,20 @@ impl App {
                 let cred_id = auth_result.cred_id().to_string();
                 let cred_json: String = conn.query_row(
                     r#"select value from credentials
-                       where value->>'$.cred_id' = ?1"#,
+                       where value->>'$.cred.cred_id' = ?1"#,
                     (auth_result.cred_id().to_string(),),
                     |row| row.get(0),
                 )?;
 
                 let mut credential = serde_json::from_str::<Passkey>(&cred_json)?;
                 if credential.update_credential(&auth_result).is_none() {
-                    return Err(AppError); // TODO(jared): credential ID did not match
+                    return Err(AppError::MismatchingCredentialID);
                 }
 
                 let cred_json = serde_json::to_string(&credential)?;
                 conn.execute(
                     r#"update credentials set value = ?1
-                       where value->>'$.cred_id' = ?2"#,
+                       where value->>'$.cred.cred_id' = ?2"#,
                     (cred_json, cred_id),
                 )?;
 
@@ -207,14 +264,16 @@ impl App {
             .await
     }
 
-    pub async fn delete_credential(&self, cred_id: CredentialID) -> Result<(), AppError> {
+    pub async fn delete_credential(&self, cred_name: String) -> Result<(), AppError> {
         self.db
             .call(move |conn| {
-                conn.execute(
-                    r#"delete from credentials where value->>cred_id = ?1"#,
-                    (cred_id.to_string(),),
-                )?;
-                Ok::<_, AppError>(())
+                let count =
+                    conn.execute(r#"delete from credentials where name = ?1"#, (cred_name,))?;
+                if count != 1 {
+                    Err(AppError::CredentialNotFound)
+                } else {
+                    Ok::<_, AppError>(())
+                }
             })
             .await
     }

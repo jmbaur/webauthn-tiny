@@ -12,6 +12,7 @@ axum = "0.5.16"
 axum-macros = "0.2.3"
 axum-sessions = "0.3.1"
 clap = { version = "3.2.20", features = ["std", "derive"] }
+libsqlite3-sys = "0.25.1"
 mime_guess = "2.0.4"
 rand_core = "0.6.3"
 rusqlite = "0.28.0"
@@ -20,6 +21,10 @@ serde_json = "1.0.85"
 serde_yaml = "0.9.11"
 tokio = { version = "1.21.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
+tower = { version = "0.4.13", features = ["tracing"] }
+tower-http = { version = "0.3.4", features = ["trace"] }
+tracing = "0.1.36"
+tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
 uuid = "1.1.2"
 webauthn-rs = "0.4.6"
 webauthn-rs-proto = "0.4.6"
