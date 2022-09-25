@@ -1189,9 +1189,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a2ca2c61bc9f3d74d2886294ab7b9853abd9c1ad903a3ac7815c58989bb7bab"
+checksum = "7bd7356a8122b6c4a24a82b278680c73357984ca2fc79a0f9fa6dea7dced7c58"
 dependencies = [
  "unicode-ident",
 ]
@@ -1298,10 +1298,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_cbor"
-version = "0.11.2"
+name = "serde_cbor_2"
+version = "0.12.0-dev"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
+checksum = "b46d75f449e01f1eddbe9b00f432d616fbbd899b809c837d0fbc380496a0dd55"
 dependencies = [
  "half",
  "serde",
@@ -1857,9 +1857,9 @@ checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
 
 [[package]]
 name = "webauthn-rs"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2fd73cc66a6708ee17ecf5542c994a332c6faddc03d76825b9989ab16408cfc"
+checksum = "8d5984278a28dc397c565fd79ee1aba67b74fa365c4eea489f7258b3f902422f"
 dependencies = [
  "base64urlsafedata",
  "serde",
@@ -1871,9 +1871,9 @@ dependencies = [
 
 [[package]]
 name = "webauthn-rs-core"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8fac64e4ba17869070a58e0a0dfc4fb980fc2b65e435ce3ab24fc406e74267e"
+checksum = "f6528b4769d8fbe020e0e8c2e66bab6035982a2e9c3f8dac384120718f4763f4"
 dependencies = [
  "base64",
  "base64urlsafedata",
@@ -1883,7 +1883,7 @@ dependencies = [
  "openssl",
  "rand",
  "serde",
- "serde_cbor",
+ "serde_cbor_2",
  "serde_json",
  "thiserror",
  "tracing",
@@ -1895,9 +1895,9 @@ dependencies = [
 
 [[package]]
 name = "webauthn-rs-proto"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adfdd8694503710db9d9948ea380a3c57fec4371cea6a5a906b2d72caf61838d"
+checksum = "09e9a265574f8d7b8f8c94c4488bb491a82d7b8e183003a4512d3dceb88efd98"
 dependencies = [
  "base64urlsafedata",
  "serde",
