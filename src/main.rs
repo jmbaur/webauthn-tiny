@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let store = MemoryStore::new();
     let mut secret = [0u8; 64];
     OsRng.fill_bytes(&mut secret);
-    let session_layer = SessionLayer::new(store, &secret);
+    let session_layer = SessionLayer::new(store, &secret).with_cookie_domain(cli.id.clone());
 
     let state_dir = env::var("STATE_DIRECTORY")?;
     let mut db_path = PathBuf::from(state_dir);
