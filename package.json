@@ -5,8 +5,8 @@
   "license": "MIT",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
-    "dev": "dev -serve",
-    "build": "dev -build",
+    "dev": "godev -serve",
+    "build": "godev -build",
     "check": "tsc --noEmit"
   },
   "dependencies": {

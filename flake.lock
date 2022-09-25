@@ -17,6 +17,21 @@
     },
     "flake-utils_2": {
       "locked": {
+        "lastModified": 1659877975,
+        "narHash": "sha256-zllb8aq3YO3h8B/U0/J1WBgAL8EX5yWf5pMj3G0NAmc=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "c0e246b9b83f637f4681389ecabcb2681b4f3af0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "flake-utils_3": {
+      "locked": {
         "lastModified": 1644229661,
         "narHash": "sha256-1YdnJAsNy69bpcjuoKdOYQX0YxZBiCYZo4Twxerqv7k=",
         "owner": "numtide",
@@ -27,6 +42,27 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "godev": {
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1664148623,
+        "narHash": "sha256-RloeyF0qfJICVp8IeEc0Yx/4BuCiI6AtsVw0Gl3YxtY=",
+        "owner": "jmbaur",
+        "repo": "godev",
+        "rev": "c60926607aca97c86cb3c184c722c21536134c71",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jmbaur",
+        "repo": "godev",
         "type": "github"
       }
     },
@@ -47,7 +83,7 @@
     },
     "pre-commit": {
       "inputs": {
-        "flake-utils": "flake-utils_2",
+        "flake-utils": "flake-utils_3",
         "nixpkgs": [
           "nixpkgs"
         ]
@@ -69,6 +105,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "godev": "godev",
         "nixpkgs": "nixpkgs",
         "pre-commit": "pre-commit"
       }

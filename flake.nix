@@ -2,17 +2,18 @@
   description = "webauthn-tiny";
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
+    godev.inputs.nixpkgs.follows = "nixpkgs";
+    godev.url = "github:jmbaur/godev";
     nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
   };
   outputs = inputs: with inputs; {
-    overlays.default = final: prev: {
-      dev = prev.callPackage ./dev { };
+    overlays.default = _: prev: {
       webauthn-tiny = prev.callPackage ./. {
         web-ui = prev.mkYarnPackage {
           src = ./.;
-          extraBuildInputs = [ final.dev ];
+          extraBuildInputs = [ inputs.godev.packages.${prev.system}.default ];
           checkPhase = "yarn check";
           buildPhase = "yarn build";
           installPhase = "cp -r deps/webauthn-tiny-web-ui/dist $out";
@@ -28,7 +29,7 @@
     let
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ self.overlays.default ];
+        overlays = [ godev.overlays.default self.overlays.default ];
       };
       preCommitHooks = pre-commit.lib.${system}.run {
         src = ./.;
@@ -47,11 +48,10 @@
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) RUSTFLAGS;
         WEBAUTHN_TINY_LOG = "debug";
-        nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs
-          ++ pkgs.dev.nativeBuildInputs;
+        nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs;
         buildInputs = pkgs.webauthn-tiny.buildInputs
           ++ pkgs.webauthn-tiny.web-ui.buildInputs
-          ++ [ pkgs.dev ];
+          ++ [ pkgs.godev ];
       };
     });
 }
