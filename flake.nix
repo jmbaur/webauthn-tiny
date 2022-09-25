@@ -7,12 +7,12 @@
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
   };
   outputs = inputs: with inputs; {
-    overlays.default = _: prev: {
+    overlays.default = final: prev: {
       dev = prev.callPackage ./dev { };
       webauthn-tiny = prev.callPackage ./. {
         web-ui = prev.mkYarnPackage {
           src = ./.;
-          extraBuildInputs = [ prev.esbuild ];
+          extraBuildInputs = [ final.dev ];
           checkPhase = "yarn check";
           buildPhase = "yarn build";
           installPhase = "cp -r deps/webauthn-tiny-web-ui/dist $out";
