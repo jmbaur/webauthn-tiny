@@ -119,12 +119,27 @@ function App() {
   if (!loading) {
     return (
       <>
+        <h2>WebauthnTiny</h2>
         {authenticated
           ? (
             <>
               {window.PublicKeyCredential
                 ? (
                   <>
+                    <div>
+                      <h4>add a new credential</h4>
+                      <form onSubmit={registerCredential}>
+                        <label>
+                          <input
+                            type="text"
+                            placeholder="name"
+                            value={newCredential}
+                            onChange={(e) => setNewCredential(e.target.value)}
+                          />
+                        </label>
+                        <input type="submit" value={"\u{002b}"} />
+                      </form>
+                    </div>
                     <div>
                       <h4>
                         {credentials.length > 0
@@ -139,20 +154,6 @@ function App() {
                           </button>
                         </div>
                       ))}
-                    </div>
-                    <div>
-                      <h4>add a new credential</h4>
-                      <form onSubmit={registerCredential}>
-                        <label>
-                          <input
-                            type="text"
-                            placeholder="name"
-                            value={newCredential}
-                            onChange={(e) => setNewCredential(e.target.value)}
-                          />
-                        </label>
-                        <input type="submit" value={"\u{002b}"} />
-                      </form>
                     </div>
                   </>
                 )
