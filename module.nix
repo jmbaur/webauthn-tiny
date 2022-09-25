@@ -48,8 +48,18 @@ in
         protectedVirtualHosts = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           description = ''
+            A list of virtual hosts that will be protected by this webauthn server. This uses nginx's auth_request functionality.
           '';
           default = [ ];
+        };
+        enableACME = lib.mkEnableOption "enable ACME on this virtual host";
+        useACMEHost = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            Whether to ask Let's Encrypt to sign a certificate for this vhost. Alternately, you can use an existing certificate through
+            useACMEHost.
+          '';
         };
       };
     };
@@ -85,6 +95,7 @@ in
             };
           in
           {
+            inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
             locations."= /api/validate" = withProxy { };
             locations."/api" = withProxy {
