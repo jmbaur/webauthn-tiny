@@ -66,24 +66,25 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     let redirect_url = params.get("url");
 
+    function resolveAuth() {
+      if (redirect_url !== null) {
+        window.location.replace(redirect_url);
+      } else {
+        setAuthenticated(true);
+        setLoading(false);
+      }
+    }
+
     setLoading(true);
     checkIfAuthenticated().then((isAuthenticated) => {
       if (isAuthenticated) {
-        if (redirect_url !== null) {
-          window.location.replace(redirect_url);
-        }
-        setAuthenticated(true);
-        setLoading(false);
+        resolveAuth();
       } else {
         startAuthentication().then((data) => {
           if (data !== undefined) {
             // we have a challenge
             endAuthentication(data).then(() => {
-              if (redirect_url !== null) {
-                window.location.replace(redirect_url);
-              }
-              setAuthenticated(true);
-              setLoading(false);
+              resolveAuth();
             }).catch(alert);
           }
         }).catch(alert);
