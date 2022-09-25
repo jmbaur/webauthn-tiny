@@ -10,14 +10,14 @@ in
         id = lib.mkOption {
           type = lib.types.str;
           description = ''
-            TODO
+            An ID that corresponds to the domain applicable for that Relying Party.
           '';
           example = "mywebsite.com";
         };
         origin = lib.mkOption {
           type = lib.types.str;
           description = ''
-            TODO
+            The origin on which registrations for the Relying Party will take place.
           '';
           example = "https://mywebsite.com";
         };
@@ -70,6 +70,7 @@ in
           };
         in
         {
+          forceSSL = true; # webauthn is only available over HTTPS
           locations."= /api/validate" = withProxy { };
           locations."/api" = withProxy {
             inherit (cfg.nginx) basicAuthFile basicAuth;
