@@ -16,13 +16,16 @@ type Credential = {
 
 async function checkIfAuthenticated(): Promise<boolean> {
   const response = await fetch("/api/validate", { method: "GET" });
-  return response.status === 200;
+  return response.ok;
 }
 
 async function startAuthentication(): Promise<
   CredentialRequestOptions | undefined
 > {
   const response = await fetch("/api/authenticate", { method: "GET" });
+  if (!response.ok) {
+    throw new Error("Failed to start authentication");
+  }
   const data: { challenge: null | CredentialRequestOptionsJSON } =
     await response.json();
   if (data.challenge === null) return undefined;
@@ -33,11 +36,15 @@ async function endAuthentication(opts: CredentialRequestOptions) {
   const data = await get(opts);
   const body = JSON.stringify(data);
 
-  await fetch("/api/authenticate", {
+  const response = await fetch("/api/authenticate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
+
+  if (!response.ok) {
+    throw new Error("Not authenticated");
+  }
 }
 
 async function getCredentials(): Promise<Array<Credential>> {
@@ -72,11 +79,14 @@ function App() {
           if (data !== undefined) {
             // we have a challenge
             endAuthentication(data).then(() => {
+              if (redirect_url !== null) {
+                window.location.replace(redirect_url);
+              }
               setAuthenticated(true);
               setLoading(false);
-            });
+            }).catch(alert);
           }
-        });
+        }).catch(alert);
       }
     });
   }, [authenticated]);
