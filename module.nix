@@ -7,16 +7,14 @@ in
     # TODO(jared): add descriptions to options
     services.webauthn-tiny = {
       enable = lib.mkEnableOption "webauthn-tiny server";
-      userFile = lib.mkOption { type = lib.types.path; };
-      credentialFile = lib.mkOption { type = lib.types.path; };
       domain = lib.mkOption { type = lib.types.str; };
-      basicAuthFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-      };
       basicAuth = lib.mkOption {
         type = lib.types.attrsOf lib.types.str;
         default = { };
+      };
+      basicAuthFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
       };
       relyingParty = {
         id = lib.mkOption { type = lib.types.str; };
