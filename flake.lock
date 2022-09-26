@@ -53,11 +53,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1664150614,
-        "narHash": "sha256-yUMwHJ724acvAeJOdGdV88JR9CTuK5R9t9nS/0WNza4=",
+        "lastModified": 1664155967,
+        "narHash": "sha256-5jfuunRDG94C/sSwLv+LaUFceHlrLoA+SM93a7Bkpa4=",
         "owner": "jmbaur",
         "repo": "godev",
-        "rev": "f43945fc4ccd7934fdcfc71775912d83f34f5def",
+        "rev": "07bfbe9e44eb7e39b8bafcd585cd3e62d9621551",
         "type": "github"
       },
       "original": {

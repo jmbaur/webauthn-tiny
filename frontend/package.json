@@ -5,8 +5,8 @@
   "license": "MIT",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
-    "dev": "godev -serve",
-    "build": "godev -build && cp favicon.ico dist/favicon.ico && cp index.css dist/index.css",
+    "dev": "godev -serve index.tsx favicon.ico index.css",
+    "build": "godev -build index.tsx favicon.ico index.css",
     "check": "tsc --noEmit"
   },
   "dependencies": {
