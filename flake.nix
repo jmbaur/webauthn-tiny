@@ -10,16 +10,15 @@
   };
   outputs = inputs: with inputs; {
     overlays.default = _: prev: {
-      webauthn-tiny = prev.callPackage ./. {
-        web-ui = prev.mkYarnPackage {
-          src = ./.;
-          extraBuildInputs = [ inputs.godev.packages.${prev.system}.default ];
-          checkPhase = "yarn check";
-          buildPhase = "yarn build";
-          installPhase = "cp -r deps/webauthn-tiny-web-ui/dist $out";
-          doDist = false;
-        };
+      webauthn-tiny-ui = prev.mkYarnPackage {
+        src = ./frontend;
+        extraBuildInputs = [ inputs.godev.packages.${prev.system}.default ];
+        checkPhase = "yarn check";
+        buildPhase = "yarn build";
+        installPhase = "cp -r deps/webauthn-tiny-ui/dist $out";
+        doDist = false;
       };
+      webauthn-tiny = prev.callPackage ./. { };
     };
     nixosModules.default = {
       nixpkgs.overlays = [ self.overlays.default ];
@@ -43,6 +42,7 @@
     in
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
+      packages.ui = pkgs.webauthn-tiny-ui;
       packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
@@ -50,7 +50,7 @@
         WEBAUTHN_TINY_LOG = "debug";
         nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs;
         buildInputs = pkgs.webauthn-tiny.buildInputs
-          ++ pkgs.webauthn-tiny.web-ui.buildInputs
+          ++ pkgs.webauthn-tiny-ui.buildInputs
           ++ [ pkgs.godev ];
       };
     });

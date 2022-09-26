@@ -4,7 +4,6 @@
 , openssl
 , sqlite
 , lib
-, web-ui
 , ...
 }:
 let
@@ -19,5 +18,4 @@ rustPlatform.buildRustPackage {
   cargoLock.lockFile = ./Cargo.lock;
   buildInputs = [ sqlite openssl ];
   nativeBuildInputs = [ llvmPackages_latest.bintools pkg-config ];
-  passthru = { inherit web-ui; };
 }

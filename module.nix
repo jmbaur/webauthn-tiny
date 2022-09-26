@@ -102,7 +102,7 @@ in
               inherit (cfg.nginx) basicAuthFile basicAuth;
             };
             locations."/" = {
-              root = "${pkgs.webauthn-tiny.web-ui}";
+              root = "${pkgs.webauthn-tiny-ui}";
               tryFiles = "$uri /index.html =404";
             };
           };
