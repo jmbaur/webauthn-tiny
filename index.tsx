@@ -61,6 +61,8 @@ function App() {
   const [credentials, setCredentials] = React.useState<Array<Credential>>([]);
 
   React.useEffect(() => {
+    if (authenticated) return;
+
     if (!window.PublicKeyCredential) return;
 
     const params = new URLSearchParams(window.location.search);
@@ -76,6 +78,7 @@ function App() {
     }
 
     setLoading(true);
+
     checkIfAuthenticated().then((isAuthenticated) => {
       if (isAuthenticated) {
         resolveAuth();
