@@ -6,18 +6,27 @@ in
   options = {
     services.webauthn-tiny = {
       enable = lib.mkEnableOption "webauthn-tiny server";
+      sessionSecretFile = lib.mkOption {
+        type = lib.types.path;
+        description = ''
+          Path to a file containing a secret that will be used to sign web
+          sessions from the server.
+        '';
+      };
       relyingParty = {
         id = lib.mkOption {
           type = lib.types.str;
           description = ''
-            An ID that corresponds to the domain applicable for that Relying Party.
+            An ID that corresponds to the domain applicable for that Relying
+            Party.
           '';
           example = "mywebsite.com";
         };
         origin = lib.mkOption {
           type = lib.types.str;
           description = ''
-            The origin on which registrations for the Relying Party will take place.
+            The origin on which registrations for the Relying Party will take
+            place.
           '';
           example = "https://mywebsite.com";
         };
@@ -33,7 +42,8 @@ in
         basicAuth = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
           description = ''
-            A static mapping of usernames to passwords. WARNING: only use this for testing purposes.
+            A static mapping of usernames to passwords. WARNING: only use this
+            for testing purposes.
           '';
           default = { };
           example = { myuser = "mypassword"; };
@@ -48,7 +58,8 @@ in
         protectedVirtualHosts = lib.mkOption {
           type = lib.types.listOf lib.types.str;
           description = ''
-            A list of virtual hosts that will be protected by this webauthn server. This uses nginx's auth_request functionality.
+            A list of virtual hosts that will be protected by this webauthn
+            server. This uses nginx's auth_request functionality.
           '';
           default = [ ];
         };
@@ -57,7 +68,8 @@ in
           type = lib.types.nullOr lib.types.str;
           default = null;
           description = ''
-            Whether to ask Let's Encrypt to sign a certificate for this vhost. Alternately, you can use an existing certificate through
+            Whether to ask Let's Encrypt to sign a certificate for this vhost.
+            Alternately, you can use an existing certificate through
             useACMEHost.
           '';
         };
@@ -118,7 +130,12 @@ in
         ProtectSystem = true;
         ProtectHome = true;
         DynamicUser = true;
-        ExecStart = "${pkgs.webauthn-tiny}/bin/webauthn-tiny --id=${cfg.relyingParty.id} --origin=${cfg.relyingParty.origin}";
+        ExecStart = "${pkgs.webauthn-tiny}/bin/webauthn-tiny " +
+          lib.escapeShellArgs [
+            "--id=${cfg.relyingParty.id}"
+            "--origin=${cfg.relyingParty.origin}"
+            "--session-secret-file=${cfg.sessionSecretFile}"
+          ];
       };
       wantedBy = [ "multi-user.target" ];
     };

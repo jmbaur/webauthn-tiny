@@ -14,7 +14,6 @@ use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_handler,
     get_credentials_handler, register_end_handler, register_start_handler, RequireLoggedIn,
 };
-use rand_core::{OsRng, RngCore};
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
@@ -32,6 +31,13 @@ struct Cli {
     id: String,
     #[clap(short, long, value_parser, help = "Relying Party origin")]
     origin: String,
+    #[clap(
+        short,
+        long,
+        value_parser,
+        help = "Path to file containing session secret"
+    )]
+    session_secret_file: PathBuf,
 }
 
 #[tokio::main]
@@ -54,9 +60,9 @@ async fn main() -> anyhow::Result<()> {
 
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
-    let mut secret = [0u8; 64];
-    OsRng.fill_bytes(&mut secret);
-    let session_layer = SessionLayer::new(store, &secret).with_cookie_domain(cli.id.clone());
+    let session_secret = std::fs::read(cli.session_secret_file)?;
+    let session_layer =
+        SessionLayer::new(store, &session_secret).with_cookie_domain(cli.id.clone());
 
     let app = App::new(db, cli.id, cli.origin);
     app.init().await?;
