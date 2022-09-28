@@ -7,23 +7,16 @@ use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
 use webauthn_rs::Webauthn;
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
     RequestChallengeResponse,
 };
 
-#[derive(Default, Serialize, Deserialize)]
-struct UserSession {
-    logged_in: bool,
-    username: Option<String>,
-}
-
-impl UserSession {
-    fn session_key() -> &'static str {
-        "user"
-    }
-}
+const SESSIONKEY_LOGGEDIN: &str = "logged_in";
+const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
+const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
 
 pub struct RequireLoggedIn;
 
@@ -45,11 +38,7 @@ where
         tracing::trace!("RequireLoggedIn extractor");
 
         if let Ok(session) = ReadableSession::from_request(req).await {
-            if session
-                .get::<UserSession>(UserSession::session_key())
-                .unwrap_or_default()
-                .logged_in
-            {
+            if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
                 Ok(Self)
             } else {
                 tracing::info!("user not logged in");
@@ -91,13 +80,14 @@ where
 #[debug_handler]
 pub async fn register_start_handler(
     XRemoteUser(username): XRemoteUser,
+    mut session: WritableSession,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Json<CreationChallengeResponse>, StatusCode> {
     tracing::trace!("register_start_handler");
 
-    let mut state = shared_state.write().await;
-    let user = state.get_user_with_credentials(username).await?;
+    let app = shared_state.read().await;
+    let user = app.get_user_with_credentials(username).await?;
 
     let (req_chal, passkey_reg) = match webauthn.start_passkey_registration(
         user.id,
@@ -117,9 +107,10 @@ pub async fn register_start_handler(
         }
     };
 
-    state
-        .in_progress_registrations
-        .insert(user.username, passkey_reg);
+    if let Err(e) = session.insert(SESSIONKEY_PASSKEYREGISTRATION, passkey_reg) {
+        tracing::error!("session.insert: {e}");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    };
 
     Ok(Json(req_chal))
 }
@@ -133,20 +124,21 @@ pub struct RegisterEndRequestPayload {
 #[debug_handler]
 pub async fn register_end_handler(
     XRemoteUser(username): XRemoteUser,
+    mut session: WritableSession,
     payload: extract::Json<RegisterEndRequestPayload>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<(), StatusCode> {
     tracing::trace!("register_end_handler");
 
-    let mut app = shared_state.write().await;
+    let app = shared_state.read().await;
 
-    let passkey_reg = match app.in_progress_registrations.get(&username) {
-        Some(r) => r,
-        None => return Err(StatusCode::NOT_FOUND),
+    let passkey_reg = match session.get::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION) {
+        Some(s) => s,
+        _ => return Err(StatusCode::NOT_FOUND),
     };
 
-    let passkey = match webauthn.finish_passkey_registration(&payload.credential, passkey_reg) {
+    let passkey = match webauthn.finish_passkey_registration(&payload.credential, &passkey_reg) {
         Ok(p) => p,
         Err(e) => {
             tracing::error!("webauthn.finish_passkey_registration: {e}");
@@ -168,7 +160,7 @@ pub async fn register_end_handler(
     app.add_credential(username, payload.name.clone(), passkey)
         .await?;
 
-    app.in_progress_registrations.remove(&user.username);
+    session.remove(SESSIONKEY_PASSKEYREGISTRATION);
 
     Ok(())
 }
@@ -187,27 +179,20 @@ pub async fn authenticate_start_handler(
 ) -> Result<Json<AuthenticateStartResponsePayload>, StatusCode> {
     tracing::trace!("authenticate_start_handler");
 
-    if session
-        .get::<UserSession>(UserSession::session_key())
-        .unwrap_or_default()
-        .logged_in
-    {
+    if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
         tracing::debug!("user already logged in");
         return Ok(Json(AuthenticateStartResponsePayload { challenge: None }));
     }
 
-    let mut state = shared_state.write().await;
+    let user = shared_state
+        .read()
+        .await
+        .get_user_with_credentials(username.clone())
+        .await?;
 
-    let user = state.get_user_with_credentials(username.clone()).await?;
     if user.credentials.is_empty() {
         tracing::debug!("user does not have any credentials");
-        if let Err(e) = session.insert(
-            UserSession::session_key(),
-            UserSession {
-                logged_in: true,
-                username: Some(username),
-            },
-        ) {
+        if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true) {
             tracing::error!("session.insert: {e}");
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
@@ -219,6 +204,7 @@ pub async fn authenticate_start_handler(
         .iter()
         .map(|c| c.credential.to_owned())
         .collect();
+
     let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&passkeys) {
         Ok(a) => a,
         Err(e) => {
@@ -227,9 +213,10 @@ pub async fn authenticate_start_handler(
         }
     };
 
-    state
-        .in_progress_authentications
-        .insert(user.username, passkey_auth);
+    if let Err(e) = session.insert(SESSIONKEY_PASSKEYAUTHENTICATION, passkey_auth) {
+        tracing::error!("session.insert: {e}");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     Ok(Json(AuthenticateStartResponsePayload {
         challenge: Some(req_chal),
@@ -238,7 +225,6 @@ pub async fn authenticate_start_handler(
 
 #[debug_handler]
 pub async fn authenticate_end_handler(
-    XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
@@ -246,15 +232,14 @@ pub async fn authenticate_end_handler(
 ) -> Result<(), StatusCode> {
     tracing::trace!("authenticate_end_handler");
 
-    let mut state = shared_state.write().await;
-
-    let passkey_authentication = match state.in_progress_authentications.get(&username) {
-        Some(p) => p,
-        None => return Err(StatusCode::NO_CONTENT),
-    };
+    let passkey_authentication =
+        match session.get::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION) {
+            Some(a) => a,
+            None => return Err(StatusCode::NO_CONTENT),
+        };
 
     let auth_result =
-        match webauthn.finish_passkey_authentication(&payload.0, passkey_authentication) {
+        match webauthn.finish_passkey_authentication(&payload.0, &passkey_authentication) {
             Ok(a) => a,
             Err(e) => {
                 tracing::error!("webauthn.finish_passkey_authentication: {e}");
@@ -263,21 +248,18 @@ pub async fn authenticate_end_handler(
         };
 
     if auth_result.needs_update() {
-        state.update_credential(auth_result).await?;
+        shared_state
+            .read()
+            .await
+            .update_credential(auth_result)
+            .await?;
     }
 
-    if let Err(e) = session.insert(
-        UserSession::session_key(),
-        UserSession {
-            logged_in: true,
-            username: Some(username.clone()),
-        },
-    ) {
+    session.remove(SESSIONKEY_PASSKEYAUTHENTICATION);
+    if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true) {
         tracing::error!("session.insert: {e}");
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
-
-    state.in_progress_authentications.remove(&username);
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 mod app;
 mod handlers;
+mod session;
 
 use app::App;
 use axum::{
@@ -7,7 +8,7 @@ use axum::{
     routing::{delete, get},
     Extension, Router, Server,
 };
-use axum_sessions::{async_session::MemoryStore, SessionLayer};
+use axum_sessions::SessionLayer;
 use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_handler,
@@ -46,15 +47,16 @@ async fn main() -> anyhow::Result<()> {
         .allow_subdomains(true)
         .build()?;
 
-    let store = MemoryStore::new();
-    let mut secret = [0u8; 64];
-    OsRng.fill_bytes(&mut secret);
-    let session_layer = SessionLayer::new(store, &secret).with_cookie_domain(cli.id.clone());
-
     let state_dir = env::var("STATE_DIRECTORY")?;
     let mut db_path = PathBuf::from(state_dir);
     db_path.push("webauthn-tiny.db");
     let db = Connection::open(db_path).await?;
+
+    let store = session::SqliteSessionStore::new(db.clone());
+    store.init().await?;
+    let mut secret = [0u8; 64];
+    OsRng.fill_bytes(&mut secret);
+    let session_layer = SessionLayer::new(store, &secret).with_cookie_domain(cli.id.clone());
 
     let app = App::new(db, cli.id, cli.origin);
     app.init().await?;

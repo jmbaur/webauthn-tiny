@@ -2,12 +2,10 @@ use axum::http::StatusCode;
 use libsqlite3_sys::ErrorCode::ConstraintViolation;
 use rusqlite::Error::{QueryReturnedNoRows, SqliteFailure};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
-use webauthn_rs::prelude::{
-    AuthenticationResult, Passkey, PasskeyAuthentication, PasskeyRegistration, Uuid,
-};
+use webauthn_rs::prelude::{AuthenticationResult, Passkey, Uuid};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CredentialState {
@@ -81,8 +79,6 @@ impl From<uuid::Error> for AppError {
 
 pub struct App {
     pub id: String,
-    pub in_progress_authentications: HashMap<String, PasskeyAuthentication>,
-    pub in_progress_registrations: HashMap<String, PasskeyRegistration>,
     pub origin: String,
     db: Connection,
 }
@@ -110,13 +106,7 @@ impl UserWithCredentials {
 
 impl App {
     pub fn new(db: Connection, id: String, origin: String) -> Self {
-        Self {
-            db,
-            id,
-            in_progress_authentications: HashMap::new(),
-            in_progress_registrations: HashMap::new(),
-            origin,
-        }
+        Self { db, id, origin }
     }
 
     pub async fn init(&self) -> Result<(), AppError> {
@@ -124,7 +114,7 @@ impl App {
             .call(|conn| {
                 conn.execute(
                     r#"create table if not exists users (
-                         id uuid primary key,
+                         id uuid primary key not null,
                          username text not null unique
                        )"#,
                     [],
