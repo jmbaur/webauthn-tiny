@@ -51,7 +51,7 @@
         nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs;
         buildInputs = pkgs.webauthn-tiny.buildInputs
           ++ pkgs.webauthn-tiny-ui.buildInputs
-          ++ [ pkgs.godev ];
+          ++ [ pkgs.cargo-edit pkgs.godev ];
       };
     });
 }
