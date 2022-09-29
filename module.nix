@@ -135,7 +135,6 @@ in
           lib.escapeShellArgs [
             "--id=${cfg.relyingParty.id}"
             "--origin=${cfg.relyingParty.origin}"
-            "--session-secret-file=${cfg.sessionSecretFile}"
           ];
       };
       wantedBy = [ "multi-user.target" ];
