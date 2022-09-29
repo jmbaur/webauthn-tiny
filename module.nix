@@ -6,8 +6,8 @@ in
   options = {
     services.webauthn-tiny = {
       enable = lib.mkEnableOption "webauthn-tiny server";
-      sessionSecretFile = lib.mkOption {
-        type = lib.types.path;
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
         description = ''
           Path to a file containing a secret that will be used to sign web
           sessions from the server.
@@ -126,6 +126,7 @@ in
       description = "webauthn-tiny (https://github.com/jmbaur/webauthn-tiny)";
       environment.WEBAUTHN_TINY_LOG = "info";
       serviceConfig = {
+        EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
         StateDirectory = "webauthn-tiny";
         ProtectSystem = true;
         ProtectHome = true;
