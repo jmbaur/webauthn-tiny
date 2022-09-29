@@ -25,19 +25,14 @@ use webauthn_rs::{prelude::Url, WebauthnBuilder};
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Cli {
-    #[clap(short, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
+    #[clap(env, short, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
     address: SocketAddr,
-    #[clap(short, long, value_parser, help = "Relying Party ID")]
+    #[clap(env, short, long, value_parser, help = "Relying Party ID")]
     id: String,
-    #[clap(short, long, value_parser, help = "Relying Party origin")]
+    #[clap(env, short, long, value_parser, help = "Relying Party origin")]
     origin: String,
-    #[clap(
-        short,
-        long,
-        value_parser,
-        help = "Path to file containing session secret"
-    )]
-    session_secret_file: PathBuf,
+    #[clap(env, short, long, value_parser, help = "Session secret")]
+    session_secret: String,
 }
 
 #[tokio::main]
@@ -60,9 +55,8 @@ async fn main() -> anyhow::Result<()> {
 
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
-    let session_secret = std::fs::read(cli.session_secret_file)?;
     let session_layer =
-        SessionLayer::new(store, &session_secret).with_cookie_domain(cli.id.clone());
+        SessionLayer::new(store, cli.session_secret.as_bytes()).with_cookie_domain(cli.id.clone());
 
     let app = App::new(db, cli.id, cli.origin);
     app.init().await?;
