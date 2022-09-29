@@ -12,13 +12,16 @@ request.
 ## Usage
 
 ```bash
-webauthn-tiny --id <RP ID> --origin <RP Origin>
+webauthn-tiny --rp-id <RP ID> --rp-origin <RP Origin> --session-secret <64-byte value>
 ```
+
+Flags can be replaced for their corresponding environment variables (e.g.
+`--rp-id` can instead be the environment variable `RP_ID`).
 
 Example:
 
 ```bash
-webauthn-tiny --id mywebsite.com --origin https://auth.mywebsite.com
+webauthn-tiny --id mywebsite.com --origin https://auth.mywebsite.com --session-secret=$(openssl rand -hex 64)
 ```
 
 ## Reverse Proxy Setup

@@ -9,8 +9,8 @@ in
       environmentFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         description = ''
-          Path to a file containing a secret that will be used to sign web
-          sessions from the server.
+          Path to a file containing the session secret value for the server.
+          Must be in the form of SESSION_SECRET=<value>.
         '';
       };
       relyingParty = {
@@ -133,8 +133,8 @@ in
         DynamicUser = true;
         ExecStart = "${pkgs.webauthn-tiny}/bin/webauthn-tiny " +
           lib.escapeShellArgs [
-            "--id=${cfg.relyingParty.id}"
-            "--origin=${cfg.relyingParty.origin}"
+            "--rp-id=${cfg.relyingParty.id}"
+            "--rp-origin=${cfg.relyingParty.origin}"
           ];
       };
       wantedBy = [ "multi-user.target" ];

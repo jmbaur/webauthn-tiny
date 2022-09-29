@@ -25,13 +25,13 @@ use webauthn_rs::{prelude::Url, WebauthnBuilder};
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Cli {
-    #[clap(env, short, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
+    #[clap(env, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
     address: SocketAddr,
-    #[clap(env, short, long, value_parser, help = "Relying Party ID")]
-    id: String,
-    #[clap(env, short, long, value_parser, help = "Relying Party origin")]
-    origin: String,
-    #[clap(env, short, long, value_parser, help = "Session secret")]
+    #[clap(env, long, value_parser, help = "Relying Party ID")]
+    rp_id: String,
+    #[clap(env, long, value_parser, help = "Relying Party origin")]
+    rp_origin: String,
+    #[clap(env, long, value_parser, help = "Session secret")]
     session_secret: String,
 }
 
@@ -43,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
-    let origin_url = Url::parse(&cli.origin)?;
-    let webauthn = WebauthnBuilder::new(&cli.id, &origin_url)?
+    let origin_url = Url::parse(&cli.rp_origin)?;
+    let webauthn = WebauthnBuilder::new(&cli.rp_id, &origin_url)?
         .allow_subdomains(true)
         .build()?;
 
@@ -55,10 +55,10 @@ async fn main() -> anyhow::Result<()> {
 
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
-    let session_layer =
-        SessionLayer::new(store, cli.session_secret.as_bytes()).with_cookie_domain(cli.id.clone());
+    let session_layer = SessionLayer::new(store, cli.session_secret.as_bytes())
+        .with_cookie_domain(cli.rp_id.clone());
 
-    let app = App::new(db, cli.id, cli.origin);
+    let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;
 
     let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
