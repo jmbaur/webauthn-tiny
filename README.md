@@ -21,7 +21,7 @@ Flags can be replaced for their corresponding environment variables (e.g.
 Example:
 
 ```bash
-webauthn-tiny --id mywebsite.com --origin https://auth.mywebsite.com --session-secret=$(openssl rand -hex 64)
+webauthn-tiny --rp-id mywebsite.com --rp-origin https://auth.mywebsite.com --session-secret=$(openssl rand -hex 64)
 ```
 
 ## Reverse Proxy Setup
