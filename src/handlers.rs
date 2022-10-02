@@ -42,6 +42,11 @@ where
                 Ok(Self)
             } else {
                 tracing::info!("user not logged in");
+                tracing::info!("headers for request:");
+                let header_map = req.headers();
+                header_map.iter().for_each(|(hkey, hval)| {
+                    tracing::info!("{:?}: {:?}", hkey, hval);
+                });
                 Err(StatusCode::UNAUTHORIZED)
             }
         } else {
