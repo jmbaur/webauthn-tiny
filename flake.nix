@@ -13,8 +13,8 @@
       webauthn-tiny-ui = prev.mkYarnPackage {
         src = ./frontend;
         extraBuildInputs = [ inputs.godev.packages.${prev.system}.default ];
-        checkPhase = "yarn check";
-        buildPhase = "yarn build";
+        checkPhase = "yarn run check";
+        buildPhase = "yarn run build";
         installPhase = "cp -r deps/webauthn-tiny-ui/dist $out";
         doDist = false;
       };
