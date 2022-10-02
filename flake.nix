@@ -35,6 +35,7 @@
         hooks = {
           cargo-check.enable = true;
           clippy.enable = true;
+          deno-fmt = { enable = true; entry = "${pkgs.deno}/bin/deno fmt"; types_or = [ "markdown" "ts" "tsx" "json" ]; };
           nixpkgs-fmt.enable = true;
           rustfmt.enable = true;
         };
@@ -51,7 +52,15 @@
         nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs;
         buildInputs = pkgs.webauthn-tiny.buildInputs
           ++ pkgs.webauthn-tiny-ui.buildInputs
-          ++ [ pkgs.cargo-edit pkgs.godev ];
+          ++ [
+          pkgs.cargo-edit
+          pkgs.godev
+          (pkgs.writeShellScriptBin "update-domain-list" ''
+            ${pkgs.curl}/bin/curl --silent https://www.iana.org/domains/root/db |
+              ${pkgs.htmlq}/bin/htmlq --text td span a |
+                ${pkgs.jq}/bin/jq -nR [inputs] > frontend/domains.json
+          '')
+        ];
       };
     });
 }

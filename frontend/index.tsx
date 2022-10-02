@@ -9,6 +9,8 @@ import {
   parseRequestOptionsFromJSON,
 } from "@github/webauthn-json/browser-ponyfill";
 
+import { domainCheck } from "./domaincheck";
+
 type Credential = {
   id: string;
   name: string;
@@ -69,7 +71,7 @@ function App() {
     let redirect_url = params.get("url");
 
     function resolveAuth() {
-      if (redirect_url !== null) {
+      if (redirect_url !== null && domainCheck(document.domain, redirect_url)) {
         window.location.replace(redirect_url);
       } else {
         setAuthenticated(true);
