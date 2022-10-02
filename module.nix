@@ -93,7 +93,7 @@ in
               proxy_set_header X-Original-URI $request_uri;
             '';
           };
-          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/?url=https://$http_host&request_uri";
+          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/?url=https://$http_host";
         }) // {
         ${cfg.nginx.virtualHost} =
           let
