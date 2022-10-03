@@ -109,9 +109,12 @@ in
           {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
-            locations."= /api/validate" = withProxy { };
-            locations."/api" = withProxy {
-              inherit (cfg.nginx) basicAuthFile basicAuth;
+            inherit (cfg.nginx) basicAuthFile basicAuth;
+            locations."/api" = withProxy { };
+            locations."= /api/validate" = withProxy {
+              extraConfig = ''
+                auth_basic off;
+              '';
             };
             locations."/" = {
               root = "${pkgs.webauthn-tiny-ui}";
