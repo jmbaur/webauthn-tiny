@@ -43,19 +43,6 @@ where
                 Ok(Self)
             } else {
                 tracing::info!("user not logged in");
-                tracing::info!("headers for request:");
-                let header_map = req.headers();
-                if let Some(x_original_uri) = header_map.get("X-Original-URI") {
-                    if let Ok(uri) = x_original_uri.to_str() {
-                        if let Err(e) = session.insert(SESSIONKEY_LASTFAILEDURL, String::from(uri))
-                        {
-                            tracing::error!(
-                                "failed to insert '{SESSIONKEY_LASTFAILEDURL}' into session: {e}"
-                            );
-                            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-                        }
-                    }
-                }
                 Err(StatusCode::UNAUTHORIZED)
             }
         } else {
