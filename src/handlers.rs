@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use axum::extract::{FromRequest, Path, RequestParts};
 use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
-use axum_sessions::extractors::WritableSession;
+use axum_sessions::extractors::{ReadableSession, WritableSession};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
@@ -17,7 +17,6 @@ use webauthn_rs_proto::{
 const SESSIONKEY_LOGGEDIN: &str = "logged_in";
 const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
 const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
-const SESSIONKEY_LASTFAILEDURL: &str = "last_failed_url";
 
 pub struct RequireLoggedIn;
 
@@ -38,7 +37,7 @@ where
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         tracing::trace!("RequireLoggedIn extractor");
 
-        if let Ok(mut session) = WritableSession::from_request(req).await {
+        if let Ok(session) = ReadableSession::from_request(req).await {
             if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
                 Ok(Self)
             } else {
