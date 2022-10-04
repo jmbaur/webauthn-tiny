@@ -1,8 +1,7 @@
 use crate::app;
 use app::SharedAppState;
 use async_trait::async_trait;
-use axum::extract::{FromRequest, Path, RequestParts};
-use axum::http::HeaderMap;
+use axum::extract::{FromRequest, Path, Query, RequestParts};
 use axum::response::{Html, Redirect};
 use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
@@ -283,6 +282,7 @@ pub async fn authenticate_end_handler(
     }
 
     if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
+        session.remove(SESSIONKEY_REDIRECTURL);
         Ok(Json(AuthenticateEndResponsePayload { redirect_url }))
     } else {
         Ok(Json(AuthenticateEndResponsePayload {
@@ -361,11 +361,17 @@ pub async fn get_credentials_template_handler(
     }
 }
 
+#[derive(Deserialize)]
+pub struct GetAuthenticateQueryParams {
+    redirect_url: String,
+}
+
 #[debug_handler]
 pub async fn get_authenticate_template_handler(
+    params: Query<GetAuthenticateQueryParams>,
     XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
-    headers: HeaderMap,
+    shared_state: Extension<SharedAppState>,
     parser: Extension<Arc<liquid::Parser>>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("authenticate.liquid") {
@@ -375,16 +381,16 @@ pub async fn get_authenticate_template_handler(
         let globals = liquid::object!({
             "username": username,
         });
+        let state = shared_state.read().await;
+        let mut redirect_url = state.origin.clone();
+        redirect_url.push_str("/credentials");
         if let Ok(output) = parsed_template.render(&globals) {
-            if let Some(referer) = headers.get("Referer") {
-                if let Ok(referer_str) = referer.to_str() {
-                    if let Err(e) =
-                        session.insert(SESSIONKEY_REDIRECTURL, String::from(referer_str))
-                    {
-                        tracing::error!("session.insert: {e}");
-                        return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
-                    }
-                }
+            if !params.redirect_url.is_empty() {
+                redirect_url = params.redirect_url.clone();
+            }
+            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
+                tracing::error!("session.insert: {e}");
+                return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
             }
             (StatusCode::OK, Html(output))
         } else {

@@ -92,7 +92,7 @@ in
               proxy_set_header Content-Length "";
             '';
           };
-          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/authenticate";
+          locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
         }) // {
         ${cfg.nginx.virtualHost} =
           let
