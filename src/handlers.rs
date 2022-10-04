@@ -239,13 +239,18 @@ pub async fn authenticate_start_handler(
     }))
 }
 
+#[derive(Serialize)]
+pub struct AuthenticateEndResponsePayload {
+    pub redirect_url: String,
+}
+
 #[debug_handler]
 pub async fn authenticate_end_handler(
     mut session: WritableSession,
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> Result<Redirect, StatusCode> {
+) -> Result<Json<AuthenticateEndResponsePayload>, StatusCode> {
     tracing::trace!("authenticate_end_handler");
 
     let passkey_authentication =
@@ -278,9 +283,11 @@ pub async fn authenticate_end_handler(
     }
 
     if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
-        Ok(Redirect::temporary(&redirect_url))
+        Ok(Json(AuthenticateEndResponsePayload { redirect_url }))
     } else {
-        Ok(Redirect::temporary("/credentials"))
+        Ok(Json(AuthenticateEndResponsePayload {
+            redirect_url: String::from("/credentials"),
+        }))
     }
 }
 

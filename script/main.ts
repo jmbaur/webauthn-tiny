@@ -36,6 +36,8 @@ async function endAuthentication(opts: CredentialRequestOptions) {
     window.alert("not authenticated");
     throw new Error("not authenticated");
   }
+  const { redirect_url }: { redirect_url: string } = await response.json();
+  location.replace(redirect_url);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
