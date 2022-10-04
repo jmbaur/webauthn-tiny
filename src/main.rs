@@ -32,6 +32,8 @@ struct Cli {
     rp_id: String,
     #[clap(env, long, value_parser, help = "Relying Party origin")]
     rp_origin: String,
+    #[clap(env, long, value_parser, help = "Extra allowed origins")]
+    allowed_origins: Vec<String>,
     #[clap(env, long, value_parser, help = "Session secret")]
     session_secret: String,
 }
@@ -45,9 +47,11 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.rp_origin)?;
-    let webauthn = WebauthnBuilder::new(&cli.rp_id, &origin_url)?
-        .allow_subdomains(true)
-        .build()?;
+    let mut builder = WebauthnBuilder::new(&cli.rp_id, &origin_url)?.allow_subdomains(true);
+    for url in cli.allowed_origins {
+        builder = builder.append_allowed_origin(&Url::parse(&url)?);
+    }
+    let webauthn = builder.build()?;
 
     let state_dir = env::var("STATE_DIRECTORY")?;
     let mut db_path = PathBuf::from(state_dir);

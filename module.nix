@@ -30,6 +30,15 @@ in
           '';
           example = "https://mywebsite.com";
         };
+        extraAllowedOrigins = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = ''
+            Extra allowed origins that will be allowed for redirects and trusted
+            by the webauthn instance.
+          '';
+          example = [ "https://subdomain.mywebsite.com" ];
+        };
       };
       nginx = {
         enable = lib.mkEnableOption "nginx support";

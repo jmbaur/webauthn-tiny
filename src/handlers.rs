@@ -21,10 +21,6 @@ const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
 const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
 const SESSIONKEY_REDIRECTURL: &str = "redirect_url";
 
-fn is_logged_in(session: ReadableSession) -> bool {
-    session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default()
-}
-
 pub struct RequireLoggedIn;
 
 #[async_trait]
@@ -45,15 +41,14 @@ where
         tracing::trace!("RequireLoggedIn extractor");
 
         if let Ok(session) = ReadableSession::from_request(req).await {
-            if is_logged_in(session) {
-                Ok(Self)
-            } else {
-                Err(Redirect::temporary("/authenticate"))
+            if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
+                return Ok(Self);
             }
-        } else {
-            tracing::error!("could not get session");
-            Err(Redirect::temporary("/authenticate"))
         }
+
+        Err(Redirect::temporary(
+            "/authenticate?redirect_url=/credentials",
+        ))
     }
 }
 
@@ -85,7 +80,7 @@ where
 
 #[debug_handler]
 pub async fn validate_handler(session: ReadableSession) -> StatusCode {
-    if is_logged_in(session) {
+    if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
         StatusCode::OK
     } else {
         StatusCode::UNAUTHORIZED
@@ -363,7 +358,7 @@ pub async fn get_credentials_template_handler(
 
 #[derive(Deserialize)]
 pub struct GetAuthenticateQueryParams {
-    redirect_url: String,
+    pub redirect_url: Option<String>,
 }
 
 #[debug_handler]
@@ -371,8 +366,9 @@ pub async fn get_authenticate_template_handler(
     params: Query<GetAuthenticateQueryParams>,
     XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
-    shared_state: Extension<SharedAppState>,
     parser: Extension<Arc<liquid::Parser>>,
+    shared_state: Extension<SharedAppState>,
+    webauthn: Extension<Arc<Webauthn>>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("authenticate.liquid") {
         let parsed_template = parser
@@ -382,12 +378,20 @@ pub async fn get_authenticate_template_handler(
             "username": username,
         });
         let state = shared_state.read().await;
-        let mut redirect_url = state.origin.clone();
-        redirect_url.push_str("/credentials");
+        let redirect_url = params
+            .redirect_url
+            .clone()
+            .unwrap_or_else(|| (state.origin.clone() + "/credentials"));
+        let url = url::Url::parse(&redirect_url).unwrap();
+        if !webauthn
+            .get_allowed_origins()
+            .iter()
+            .any(|u| u.origin() == url.origin())
+        {
+            tracing::info!("denied client request for redirect to {redirect_url}");
+            return (StatusCode::FORBIDDEN, Html(String::new()));
+        }
         if let Ok(output) = parsed_template.render(&globals) {
-            if !params.redirect_url.is_empty() {
-                redirect_url = params.redirect_url.clone();
-            }
             if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
                 tracing::error!("session.insert: {e}");
                 return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
@@ -399,5 +403,47 @@ pub async fn get_authenticate_template_handler(
     } else {
         // TODO(jared): don't do this
         (StatusCode::NOT_FOUND, Html(String::new()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use webauthn_rs::prelude::*;
+    use webauthn_rs::WebauthnBuilder;
+
+    #[test]
+    fn exploration() {
+        let webauthn =
+            WebauthnBuilder::new("foo.com", &Url::parse("https://auth.foo.com").unwrap())
+                .unwrap()
+                .allow_subdomains(true)
+                .append_allowed_origin(&Url::parse("https://foo.com").unwrap())
+                .append_allowed_origin(&Url::parse("https://bar.foo.com").unwrap())
+                .build()
+                .unwrap();
+
+        // passes
+        [
+            "https://bar.foo.com",
+            "https://auth.foo.com",
+            "https://foo.com",
+        ]
+        .iter()
+        .for_each(|&url| {
+            assert!(webauthn
+                .get_allowed_origins()
+                .iter()
+                .any(|u| u.origin() == Url::parse(url).unwrap().origin()));
+        });
+
+        // fails
+        ["https://fo.com", "https://foo.bar.com"]
+            .iter()
+            .for_each(|&url| {
+                assert!(webauthn
+                    .get_allowed_origins()
+                    .iter()
+                    .any(|u| u.origin() != Url::parse(url).unwrap().origin()));
+            });
     }
 }
