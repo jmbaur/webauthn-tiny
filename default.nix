@@ -1,11 +1,4 @@
-{ rustPlatform
-, llvmPackages_latest
-, pkg-config
-, openssl
-, sqlite
-, lib
-, ...
-}:
+{ rustPlatform, llvmPackages_latest, pkg-config, openssl, sqlite, lib, ... }:
 let
   cargoToml = lib.importTOML ./Cargo.toml;
   pname = cargoToml.package.name;

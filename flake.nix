@@ -38,24 +38,17 @@
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.callPackage ./. { };
+      packages.script = pkgs.callPackage ./script { };
       packages.ui = pkgs.symlinkJoin {
         name = "webauthn-tiny-ui";
-        paths = [ ./static (pkgs.callPackage ./script { }) ];
+        paths = [ ./static self.packages.${system}.script ];
       };
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (self.packages.${system}.default) RUSTFLAGS;
         WEBAUTHN_TINY_LOG = "debug";
         nativeBuildInputs = self.packages.${system}.default.nativeBuildInputs;
-        buildInputs = self.packages.${system}.default.buildInputs
-          ++ self.packages.${system}.ui.buildInputs
-          ++ [
-          (pkgs.writeShellScriptBin "update-domain-list" ''
-            ${pkgs.curl}/bin/curl --silent https://www.iana.org/domains/root/db |
-              ${pkgs.htmlq}/bin/htmlq --text td span a |
-                ${pkgs.jq}/bin/jq -nR [inputs] > frontend/domains.json
-          '')
-        ];
+        buildInputs = self.packages.${system}.default.buildInputs ++ self.packages.${system}.script.buildInputs;
       };
     });
 }
