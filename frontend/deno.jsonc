@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "lib": ["esnext", "dom"],
-    "jsx": "react-jsx",
-    "jsxImportSource": "https://esm.sh/preact@10.11.0/jsx-runtime?target=deno"
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment"
   },
   "tasks": {
     "install": "deno cache --reload --lock=lock.json main.tsx",

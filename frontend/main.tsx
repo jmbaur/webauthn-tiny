@@ -1,4 +1,13 @@
-import * as React from "https://esm.sh/preact@10.11.0/compat.js?target=deno";
+import {
+  Fragment,
+  h,
+  JSX,
+  render,
+} from "https://esm.sh/preact@10.11.0/preact.js?target=deno";
+import {
+  useEffect,
+  useState,
+} from "https://esm.sh/preact@10.11.0/hooks.js?target=deno";
 import {
   create,
   CredentialCreationOptionsJSON,
@@ -55,13 +64,13 @@ async function getCredentials(): Promise<Array<Credential>> {
 }
 
 function App() {
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [authenticated, setAuthenticated] = React.useState<boolean>(false);
-  const [refresh, setRefresh] = React.useState<boolean>(true);
-  const [newCredential, setNewCredential] = React.useState<string>("");
-  const [credentials, setCredentials] = React.useState<Array<Credential>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [refresh, setRefresh] = useState<boolean>(true);
+  const [newCredential, setNewCredential] = useState<string>("");
+  const [credentials, setCredentials] = useState<Array<Credential>>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (authenticated) return;
 
     if (!window.PublicKeyCredential) return;
@@ -96,7 +105,7 @@ function App() {
     });
   }, [authenticated]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!authenticated) return;
     if (!refresh) return;
     getCredentials().then(setCredentials);
@@ -104,7 +113,7 @@ function App() {
   }, [authenticated, refresh]);
 
   const registerCredential = async function (
-    e: React.JSX.TargetedEvent<HTMLFormElement, Event>,
+    e: JSX.TargetedEvent<HTMLFormElement, Event>,
   ) {
     e.preventDefault();
     if (newCredential === "") {
@@ -158,7 +167,7 @@ function App() {
                               type="text"
                               placeholder="name"
                               value={newCredential}
-                              onChange={(e) =>
+                              onInput={(e) =>
                                 setNewCredential(
                                   (e.target as HTMLInputElement).value,
                                 )}
@@ -202,4 +211,4 @@ function App() {
   );
 }
 
-React.render(<App />, document.getElementById("app") as Element);
+render(<App />, document.getElementById("app") as Element);

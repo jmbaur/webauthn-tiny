@@ -1,16 +1,10 @@
 {
   "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno": "54e59ccaa471f2f4eab0b7b125800224f11e0aac5d03a1c08a070b328137d69d",
-  "https://esm.sh/preact@10.11.0/compat.js?target=deno": "5641fed454f05cc40e96305b1a7376422b899f85025a5192e27d0f12d532db9c",
-  "https://esm.sh/preact@10.11.0/jsx-runtime?target=deno/jsx-runtime": "5c123264f19799ab243211132dded45f6d42d594b5c78dd585f947d07bf20eae",
-  "https://esm.sh/stable/preact@10.11.0/deno/compat.js": "1a121f6e6dd7f0a2b8f01bac821b8336304f3935306528e005279da77777989f",
+  "https://esm.sh/preact@10.11.0/hooks.js?target=deno": "2b8ec155eb8b87501663f074acff1d55a9114fa7d88f0b39da06c940af1ff736",
+  "https://esm.sh/preact@10.11.0/preact.js?target=deno": "1a781d396c6a4b0312822ec08bcd677d97e0de9476ceaea2a659a826c6c0bb2a",
   "https://esm.sh/stable/preact@10.11.0/deno/hooks.js": "48b7674c1f0c2a0f8a0f758b786f5bc15ba0f7a4f3a356ecc783848f1e4a1c55",
-  "https://esm.sh/stable/preact@10.11.0/deno/jsx-runtime.js": "b5a8e96758c20b5dea05802c6f6962b8a95bfdbd476eb4ea51cf3234f6e09271",
   "https://esm.sh/stable/preact@10.11.0/deno/preact.js": "071b515099e5dff2fe56768be62644e32fab702b194171357ccc4d7d1210144a",
-  "https://esm.sh/v95/preact@10.11.0/compat/src/index.d.ts": "c1f8da0c5666e296510cab41732743d593d71642ea55f57fbd19c6abae4e0192",
-  "https://esm.sh/v95/preact@10.11.0/compat/src/suspense-list.d.ts": "b8e274324392157ce476ef3a48ae215c9f7003b08525d140645f19eab20d1948",
-  "https://esm.sh/v95/preact@10.11.0/compat/src/suspense.d.ts": "81f5266e0977a94347505d11b8103024211f2b4f3b2eb2aa276a10d8fd169e65",
   "https://esm.sh/v95/preact@10.11.0/hooks/src/index.d.ts": "5c29febb624fc25d71cb0e125848c9b711e233337a08f7eacfade38fd4c14cc3",
-  "https://esm.sh/v95/preact@10.11.0/jsx-runtime/src/index.d.ts": "e153460ed2b3fe2ad8b93696ecd48fbf73cd628b0b0ea6692b71804a3af69dfd",
   "https://esm.sh/v95/preact@10.11.0/src/index.d.ts": "1a5c331227be54be6515b0c92a469d352834fa413963ae84a39a05a3177111f6",
   "https://esm.sh/v95/preact@10.11.0/src/jsx.d.ts": "c423715fd7992b2e1446fea11d2d04e8adbd66c1edca1ce5e85f90e0d26a2eb2",
   "https://esm.sh/v96/@github/webauthn-json@2.0.1/deno/browser-ponyfill.js": "7bb06c28187519454fe8783529309ddce4acb6041b965550398ee9b277f0c105",
@@ -18,5 +12,7 @@
   "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/api.d.ts": "b6213094fab47a717faf264968d2d8f544a9ef97be9c3ec23446f8e965b9a998",
   "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/json.d.ts": "01ea1a74ce34be28ec863326711a392fe44c4eacf71633d69a77d461dd853fdd",
   "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/supported.d.ts": "0fb538b1eb3d4ec22caad8ec64386c1c819f74ade7a4822430294a2c4ed0502d",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/browser-ponyfill.d.ts": "0217ef653ebfc1565b27c77025e1df62cadb202897e8485dba7eb9f1e4899046"
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/browser-ponyfill.d.ts": "0217ef653ebfc1565b27c77025e1df62cadb202897e8485dba7eb9f1e4899046",
+  "https://esm.sh/v96/preact@10.11.0/src/index.d.ts": "1a5c331227be54be6515b0c92a469d352834fa413963ae84a39a05a3177111f6",
+  "https://esm.sh/v96/preact@10.11.0/src/jsx.d.ts": "c423715fd7992b2e1446fea11d2d04e8adbd66c1edca1ce5e85f90e0d26a2eb2"
 }
