@@ -41,8 +41,7 @@ async function endAuthentication(opts: CredentialRequestOptions) {
 document.addEventListener("DOMContentLoaded", function () {
   const deleteButton = document.getElementById("delete-button");
   if (deleteButton) {
-    deleteButton.addEventListener("click", async function (ev: MouseEvent) {
-      ev.preventDefault(); // TODO(jared): not needed?
+    deleteButton.addEventListener("click", async function (_: MouseEvent) {
       const cred_id = deleteButton.getAttribute("value");
       if (cred_id) {
         try {
