@@ -2,6 +2,7 @@ use crate::app;
 use app::SharedAppState;
 use async_trait::async_trait;
 use axum::extract::{FromRequest, Path, RequestParts};
+use axum::http::HeaderMap;
 use axum::response::{Html, Redirect};
 use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
@@ -19,6 +20,7 @@ use webauthn_rs_proto::{
 const SESSIONKEY_LOGGEDIN: &str = "logged_in";
 const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
 const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
+const SESSIONKEY_REDIRECTURL: &str = "redirect_url";
 
 fn is_logged_in(session: ReadableSession) -> bool {
     session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default()
@@ -77,8 +79,7 @@ where
             }
         } else {
             tracing::info!("no X-Remote-User header present");
-            Ok(XRemoteUser(String::from("foo")))
-            // Err(StatusCode::UNAUTHORIZED)
+            Err(StatusCode::UNAUTHORIZED)
         }
     }
 }
@@ -244,7 +245,7 @@ pub async fn authenticate_end_handler(
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> Result<(), StatusCode> {
+) -> Result<Redirect, StatusCode> {
     tracing::trace!("authenticate_end_handler");
 
     let passkey_authentication =
@@ -276,7 +277,11 @@ pub async fn authenticate_end_handler(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    Ok(())
+    if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
+        Ok(Redirect::temporary(&redirect_url))
+    } else {
+        Ok(Redirect::temporary("/credentials"))
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -352,6 +357,8 @@ pub async fn get_credentials_template_handler(
 #[debug_handler]
 pub async fn get_authenticate_template_handler(
     XRemoteUser(username): XRemoteUser,
+    mut session: WritableSession,
+    headers: HeaderMap,
     parser: Extension<Arc<liquid::Parser>>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("authenticate.liquid") {
@@ -362,6 +369,16 @@ pub async fn get_authenticate_template_handler(
             "username": username,
         });
         if let Ok(output) = parsed_template.render(&globals) {
+            if let Some(referer) = headers.get("Referer") {
+                if let Ok(referer_str) = referer.to_str() {
+                    if let Err(e) =
+                        session.insert(SESSIONKEY_REDIRECTURL, String::from(referer_str))
+                    {
+                        tracing::error!("session.insert: {e}");
+                        return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                    }
+                }
+            }
             (StatusCode::OK, Html(output))
         } else {
             (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))

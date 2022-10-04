@@ -68,10 +68,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const newCredential = window.prompt(
         "Enter a name for the new credential",
       );
-      if (newCredential === null) {
-        window.alert("Name for new credential not found");
-        return;
-      } else if (newCredential === "") {
+      if (newCredential === null) return;
+      if (newCredential === "") {
         window.alert("Name for new credential is empty");
         return;
       }
