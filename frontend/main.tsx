@@ -1,5 +1,4 @@
-import * as React from "https://cdn.skypack.dev/react@18.2.0/index.js?dts";
-import * as ReactDOM from "https://cdn.skypack.dev/react-dom@18.2.0/index.js?dts";
+import * as React from "https://esm.sh/preact@10.11.0/compat.js?target=deno";
 import {
   create,
   CredentialCreationOptionsJSON,
@@ -104,7 +103,9 @@ function App() {
     setRefresh(false);
   }, [authenticated, refresh]);
 
-  const registerCredential: React.FormEventHandler = async function (e) {
+  const registerCredential = async function (
+    e: React.JSX.TargetedEvent<HTMLFormElement, Event>,
+  ) {
     e.preventDefault();
     if (newCredential === "") {
       alert("Name for new credential is empty");
@@ -157,7 +158,10 @@ function App() {
                               type="text"
                               placeholder="name"
                               value={newCredential}
-                              onChange={(e) => setNewCredential(e.target.value)}
+                              onChange={(e) =>
+                                setNewCredential(
+                                  (e.target as HTMLInputElement).value,
+                                )}
                             />
                           </label>
                           <input type="submit" value={"\u{002b}"} />
@@ -198,4 +202,4 @@ function App() {
   );
 }
 
-ReactDOM.render(<App />, document.getElementById("app"));
+React.render(<App />, document.getElementById("app") as Element);
