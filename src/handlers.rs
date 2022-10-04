@@ -262,12 +262,9 @@ pub async fn authenticate_end_handler(
             }
         };
 
+    let state = shared_state.read().await;
     if auth_result.needs_update() {
-        shared_state
-            .read()
-            .await
-            .update_credential(auth_result)
-            .await?;
+        state.update_credential(auth_result).await?;
     }
 
     session.remove(SESSIONKEY_PASSKEYAUTHENTICATION);
@@ -281,7 +278,7 @@ pub async fn authenticate_end_handler(
         Ok(Json(AuthenticateEndResponsePayload { redirect_url }))
     } else {
         Ok(Json(AuthenticateEndResponsePayload {
-            redirect_url: String::from("/credentials"),
+            redirect_url: format!("{}/{}", state.origin, "credentials"),
         }))
     }
 }
@@ -391,7 +388,7 @@ pub async fn get_authenticate_template_handler(
         let redirect_url = params
             .redirect_url
             .clone()
-            .unwrap_or_else(|| (state.origin.clone() + "/credentials"));
+            .unwrap_or_else(|| format!("{}/{}", state.origin, "credentials"));
         let url = match url::Url::parse(&redirect_url) {
             Ok(u) => u,
             Err(e) => {
