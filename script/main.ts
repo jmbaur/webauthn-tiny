@@ -39,7 +39,7 @@ async function endAuthentication(opts: CredentialRequestOptions) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  const deleteButtons = document.getElementsByClassName("delete-button");
+  const deleteButtons = document.getElementsByClassName("delete-credential");
   for (const button of deleteButtons) {
     button.addEventListener("click", async function (_: Event) {
       const cred_id = button.getAttribute("value");
@@ -62,12 +62,12 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  const form = document.querySelector("form");
-  if (form) {
-    form.addEventListener("submit", async function (ev: SubmitEvent) {
-      ev.preventDefault();
-      const formData = new FormData(form);
-      const newCredential = formData.get("new-cred-name");
+  const addButton = document.getElementById("add-credential");
+  if (addButton) {
+    addButton.addEventListener("click", async function (_: Event) {
+      const newCredential = window.prompt(
+        "Enter a name for the new credential",
+      );
       if (newCredential === null) {
         window.alert("Name for new credential not found");
         return;
