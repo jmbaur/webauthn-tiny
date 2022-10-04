@@ -43,7 +43,10 @@ document.addEventListener("DOMContentLoaded", function () {
   for (const button of deleteButtons) {
     button.addEventListener("click", async function (_: Event) {
       const cred_id = button.getAttribute("value");
-      if (cred_id) {
+      if (
+        cred_id &&
+        window.confirm("Do you really want to delete this credential?")
+      ) {
         try {
           const response = await fetch(`/api/credentials/${cred_id}`, {
             method: "DELETE",
