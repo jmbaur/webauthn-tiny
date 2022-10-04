@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "deno.ns",
+      "dom",
+      "dom.iterable",
+      "dom.asynciterable"
+    ]
+  },
+  "tasks": {
+    "install": "deno cache --reload --lock=deno.lock main.ts",
+    "upgrade": "deno cache --lock=deno.lock --lock-write main.ts",
+    "check": "deno check main.ts",
+    "build": "mkdir -p dist && deno bundle main.ts > dist/main.js"
+  }
+}

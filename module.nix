@@ -86,14 +86,13 @@ in
             error_page 401 = @error401;
           '';
           locations."= /auth" = {
-            proxyPass = "http://[::1]:8080/api/validate";
+            proxyPass = "http://[::1]:8080/validate";
             extraConfig = ''
               proxy_pass_request_body off;
               proxy_set_header Content-Length "";
-              proxy_set_header X-Original-URI $request_uri;
             '';
           };
-          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/?url=https://$http_host";
+          locations."@error401".return = "302 https://${cfg.nginx.virtualHost}/authenticate";
         }) // {
         ${cfg.nginx.virtualHost} =
           let
@@ -110,8 +109,11 @@ in
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
             inherit (cfg.nginx) basicAuthFile basicAuth;
+            locations."= /".return = "301 /credentials";
+            locations."/credentials" = withProxy { };
+            locations."/authenticate" = withProxy { };
             locations."/api" = withProxy { };
-            locations."= /api/validate" = withProxy {
+            locations."= /validate" = withProxy {
               extraConfig = ''
                 auth_basic off;
               '';

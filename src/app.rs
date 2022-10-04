@@ -254,11 +254,13 @@ impl App {
             .await
     }
 
-    pub async fn delete_credential(&self, cred_name: String) -> Result<(), AppError> {
+    pub async fn delete_credential(&self, cred_id: String) -> Result<(), AppError> {
         self.db
             .call(move |conn| {
-                let count =
-                    conn.execute(r#"delete from credentials where name = ?1"#, (cred_name,))?;
+                let count = conn.execute(
+                    r#"delete from credentials where value->>'$.cred.cred_id' = ?1"#,
+                    (cred_id,),
+                )?;
                 if count != 1 {
                     Err(AppError::CredentialNotFound)
                 } else {

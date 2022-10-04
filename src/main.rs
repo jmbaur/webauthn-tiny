@@ -11,8 +11,9 @@ use axum::{
 use axum_sessions::SessionLayer;
 use clap::Parser;
 use handlers::{
-    authenticate_end_handler, authenticate_start_handler, delete_credentials_handler,
-    get_credentials_handler, register_end_handler, register_start_handler, RequireLoggedIn,
+    authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
+    get_authenticate_template_handler, get_credentials_template_handler, register_end_handler,
+    register_start_handler, validate_handler, RequireLoggedIn,
 };
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -63,38 +64,36 @@ async fn main() -> anyhow::Result<()> {
 
     let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
 
+    let parser = liquid::ParserBuilder::with_stdlib().build()?;
+
     let router = Router::new()
-        .route(
-            "/api/validate",
-            get(|| async {
-                // returns empty 200 as long as the middleware passes
-            })
-            .layer(require_logged_in.clone()),
-        )
-        .route(
-            "/api/credentials",
-            get(get_credentials_handler).layer(require_logged_in.clone()),
-        )
-        .route(
-            "/api/credentials/:name",
-            delete(delete_credentials_handler).layer(require_logged_in.clone()),
-        )
         .route(
             "/api/register",
             get(register_start_handler)
                 .post(register_end_handler)
-                .layer(require_logged_in),
+                .layer(require_logged_in.clone()),
+        )
+        .route(
+            "/api/credentials/:cred_id",
+            delete(delete_credentials_api_handler).layer(require_logged_in.clone()),
         )
         .route(
             "/api/authenticate",
             get(authenticate_start_handler).post(authenticate_end_handler),
+        )
+        .route("/validate", get(validate_handler))
+        .route("/authenticate", get(get_authenticate_template_handler))
+        .route(
+            "/credentials",
+            get(get_credentials_template_handler).layer(require_logged_in),
         )
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
                 .layer(session_layer)
                 .layer(Extension(Arc::new(RwLock::new(app))))
-                .layer(Extension(Arc::new(webauthn))),
+                .layer(Extension(Arc::new(webauthn)))
+                .layer(Extension(Arc::new(parser))),
         );
 
     tracing::debug!("listening on {}", cli.address);

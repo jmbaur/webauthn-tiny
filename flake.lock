@@ -42,21 +42,6 @@
         "type": "github"
       }
     },
-    "esbuild-nixpkgs-pin": {
-      "locked": {
-        "lastModified": 1659091710,
-        "narHash": "sha256-BdJpCQsvlr2R6YW0XW+1hV7nRwZ6ZP1Y7ssjsXlaLFs=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "a2b3b7593440cbd1726bb0ec4616347652b2adb5",
-        "type": "github"
-      },
-      "original": {
-        "id": "nixpkgs",
-        "rev": "a2b3b7593440cbd1726bb0ec4616347652b2adb5",
-        "type": "indirect"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -188,7 +173,6 @@
     "root": {
       "inputs": {
         "deno2nix": "deno2nix",
-        "esbuild-nixpkgs-pin": "esbuild-nixpkgs-pin",
         "flake-utils": "flake-utils_3",
         "nixpkgs": "nixpkgs_2",
         "pre-commit": "pre-commit"

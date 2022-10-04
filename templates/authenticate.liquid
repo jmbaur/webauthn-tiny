@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="/style.css">
+		<title>WebAuthnTiny</title>
+	</head>
+	<body>
+		<div>Authenticating for {{ username }}</div>
+		<script src="/main.js">
+			startAuthentication().then(endAuthentication).catch(console.error)
+		</script>
+	</body>
+</html>

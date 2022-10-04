@@ -2,9 +2,11 @@ use crate::app;
 use app::SharedAppState;
 use async_trait::async_trait;
 use axum::extract::{FromRequest, Path, RequestParts};
+use axum::response::{Html, Redirect};
 use axum::{extract, http::StatusCode, Extension, Json};
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
@@ -18,6 +20,10 @@ const SESSIONKEY_LOGGEDIN: &str = "logged_in";
 const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
 const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
 
+fn is_logged_in(session: ReadableSession) -> bool {
+    session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default()
+}
+
 pub struct RequireLoggedIn;
 
 #[async_trait]
@@ -25,7 +31,7 @@ impl<B> FromRequest<B> for RequireLoggedIn
 where
     B: Send,
 {
-    type Rejection = StatusCode;
+    type Rejection = Redirect;
 
     // TODO(jared): On top of ensuring the client's cookie is associated with a session where the
     // user is logged in, should we also ensure that the username for the session matches with the
@@ -38,15 +44,14 @@ where
         tracing::trace!("RequireLoggedIn extractor");
 
         if let Ok(session) = ReadableSession::from_request(req).await {
-            if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
+            if is_logged_in(session) {
                 Ok(Self)
             } else {
-                tracing::info!("user not logged in");
-                Err(StatusCode::UNAUTHORIZED)
+                Err(Redirect::temporary("/authenticate"))
             }
         } else {
             tracing::error!("could not get session");
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(Redirect::temporary("/authenticate"))
         }
     }
 }
@@ -72,8 +77,18 @@ where
             }
         } else {
             tracing::info!("no X-Remote-User header present");
-            Err(StatusCode::UNAUTHORIZED)
+            Ok(XRemoteUser(String::from("foo")))
+            // Err(StatusCode::UNAUTHORIZED)
         }
+    }
+}
+
+#[debug_handler]
+pub async fn validate_handler(session: ReadableSession) -> StatusCode {
+    if is_logged_in(session) {
+        StatusCode::OK
+    } else {
+        StatusCode::UNAUTHORIZED
     }
 }
 
@@ -265,47 +280,94 @@ pub async fn authenticate_end_handler(
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct CredentialIDWithName {
-    id: String,
-    name: String,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct GetCredentialsResponsePayload {
     pub data: Vec<CredentialIDWithName>,
 }
 
 #[debug_handler]
-pub async fn get_credentials_handler(
-    XRemoteUser(username): XRemoteUser,
+pub async fn delete_credentials_api_handler(
+    Path(cred_id): Path<String>,
     shared_state: Extension<SharedAppState>,
-) -> Result<Json<GetCredentialsResponsePayload>, StatusCode> {
-    tracing::trace!("get_credentials_handler");
-
-    let app = shared_state.read().await;
-    let user = app.get_user_with_credentials(username).await?;
-    Ok(Json(GetCredentialsResponsePayload {
-        data: user
-            .credentials
-            .iter()
-            .map(|c| {
-                let c = c.clone();
-                CredentialIDWithName {
-                    id: c.credential.cred_id().to_string(),
-                    name: c.name,
-                }
-            })
-            .collect(),
-    }))
-}
-
-#[debug_handler]
-pub async fn delete_credentials_handler(
-    Path(name): Path<String>,
-    shared_state: Extension<SharedAppState>,
-) -> Result<(), StatusCode> {
+) -> Result<StatusCode, StatusCode> {
     tracing::trace!("delete_credentials_handler");
 
     let app = shared_state.read().await;
-    Ok(app.delete_credential(name).await?)
+    app.delete_credential(cred_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(RustEmbed)]
+#[folder = "templates"]
+struct Templates;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CredentialIDWithName {
+    id: String,
+    name: String,
+}
+
+#[debug_handler]
+pub async fn get_credentials_template_handler(
+    XRemoteUser(username): XRemoteUser,
+    parser: Extension<Arc<liquid::Parser>>,
+    shared_state: Extension<SharedAppState>,
+) -> (StatusCode, Html<String>) {
+    if let Some(template) = Templates::get("credentials.liquid") {
+        let parsed_template = parser
+            .parse(std::str::from_utf8(&template.data).unwrap())
+            .unwrap();
+
+        let app = shared_state.read().await;
+        if let Ok(user) = app.get_user_with_credentials(username).await {
+            let credentials: Vec<CredentialIDWithName> = dbg!(user
+                .credentials
+                .iter()
+                .map(|c| {
+                    let c = c.clone();
+                    CredentialIDWithName {
+                        id: c.credential.cred_id().to_string(),
+                        name: c.name,
+                    }
+                })
+                .collect());
+
+            let globals = liquid::object!({
+                "credentials": credentials,
+            });
+
+            if let Ok(output) = parsed_template.render(&globals) {
+                (StatusCode::OK, Html(output))
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+            }
+        } else {
+            (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+        }
+    } else {
+        // TODO(jared): don't do this
+        (StatusCode::NOT_FOUND, Html(String::new()))
+    }
+}
+
+#[debug_handler]
+pub async fn get_authenticate_template_handler(
+    XRemoteUser(username): XRemoteUser,
+    parser: Extension<Arc<liquid::Parser>>,
+) -> (StatusCode, Html<String>) {
+    if let Some(template) = Templates::get("authenticate.liquid") {
+        let parsed_template = parser
+            .parse(std::str::from_utf8(&template.data).unwrap())
+            .unwrap();
+        let globals = liquid::object!({
+            "username": username,
+        });
+        if let Ok(output) = parsed_template.render(&globals) {
+            (StatusCode::OK, Html(output))
+        } else {
+            (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+        }
+    } else {
+        // TODO(jared): don't do this
+        (StatusCode::NOT_FOUND, Html(String::new()))
+    }
 }

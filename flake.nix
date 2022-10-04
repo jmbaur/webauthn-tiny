@@ -7,7 +7,6 @@
     nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
-    esbuild-nixpkgs-pin.url = "nixpkgs/a2b3b7593440cbd1726bb0ec4616347652b2adb5";
   };
   outputs = inputs: with inputs; {
     nixosModules.default = {
@@ -35,21 +34,17 @@
           rustfmt.enable = true;
         };
       };
-      ESBUILD_BINARY_PATH = "${esbuild-nixpkgs-pin.legacyPackages.${system}.esbuild}/bin/esbuild";
     in
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.callPackage ./. { };
-      packages.ui = pkgs.callPackage ./frontend {
-        inherit (self.packages.${system}) packup;
-      };
-      packages.packup = pkgs.callPackage ./frontend/packup {
-        inherit ESBUILD_BINARY_PATH;
+      packages.ui = pkgs.symlinkJoin {
+        name = "webauthn-tiny-ui";
+        paths = [ ./static (pkgs.callPackage ./script { }) ];
       };
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (self.packages.${system}.default) RUSTFLAGS;
-        inherit ESBUILD_BINARY_PATH;
         WEBAUTHN_TINY_LOG = "debug";
         nativeBuildInputs = self.packages.${system}.default.nativeBuildInputs;
         buildInputs = self.packages.${system}.default.buildInputs
