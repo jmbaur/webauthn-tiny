@@ -39,10 +39,10 @@ async function endAuthentication(opts: CredentialRequestOptions) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  const deleteButton = document.getElementById("delete-button");
-  if (deleteButton) {
-    deleteButton.addEventListener("click", async function (_: MouseEvent) {
-      const cred_id = deleteButton.getAttribute("value");
+  const deleteButtons = document.getElementsByClassName("delete-button");
+  for (const button of deleteButtons) {
+    button.addEventListener("click", async function (_: Event) {
+      const cred_id = button.getAttribute("value");
       if (cred_id) {
         try {
           const response = await fetch(`/api/credentials/${cred_id}`, {
