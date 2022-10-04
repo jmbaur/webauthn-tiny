@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext", "dom"],
+    "jsx": "react",
+    "jsxFactory": "React.createElement",
+    "jsxFragmentFactory": "React.Fragment",
+    "jsxImportSource": "react"
+  },
+  "tasks": {
+    "install": "deno cache --reload --lock=lock.json main.tsx",
+    "upgrade": "deno cache --lock=lock.json --lock-write main.tsx",
+    "build": "packup build index.html"
+  }
+}

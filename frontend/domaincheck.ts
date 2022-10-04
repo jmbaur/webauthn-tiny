@@ -1,4 +1,4 @@
-import domains from "./domains.json";
+import domains from "./domains.json" assert { type: "json" };
 
 export function domainCheck(
   currentDomain: string,

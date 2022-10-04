@@ -1,0 +1,20 @@
+{
+  "https://cdn.skypack.dev/-/csstype@v3.0.6-PMW5OY5BXAHv1R2c4XZt/dist=es2019,mode=types/index.d.ts": "2421504d4ad8486abdb522b7bcdd4caafbcf4a320cdf7b19e780df258c639d7f",
+  "https://cdn.skypack.dev/-/object-assign@v4.1.1-LbCnB3r2y2yFmhmiCfPn/dist=es2019,mode=imports/optimized/object-assign.js": "d75198c87b0640a682645d8cfdbaa67b5dd4b71aec625582e65d05e87caba008",
+  "https://cdn.skypack.dev/-/prop-types@v15.7.2-tc9NNh74olX2cMoOqwEA/dist=es2019,mode=types/index.d.ts": "a7e32dcb90bf0c1b7a1e4ac89b0f7747cbcba25e7beddc1ebf17be1e161842ad",
+  "https://cdn.skypack.dev/-/react-dom@v17.0.1-oZ1BXZ5opQ1DbTh7nu9r/dist=es2019,mode=imports/optimized/react-dom.js": "e07ddfd24f1a6b1cca91f244b5ceca2aa1c9d712dddd6ef1ba662d1d3b6de5c2",
+  "https://cdn.skypack.dev/-/react-dom@v17.0.1-oZ1BXZ5opQ1DbTh7nu9r/dist=es2019,mode=types/index.d.ts": "34107b703b7af297b7d504f1c00ce38b12dcf5e4d8c3d36b23923a352a00bd4e",
+  "https://cdn.skypack.dev/-/react@v17.0.1-yH0aYV1FOvoIPeKBbHxg/dist=es2019,mode=imports/optimized/react.js": "d67a56e0f98f9bd5b9b5ed0408ea913b2d3e14265979e457d905a795ac5f4b4b",
+  "https://cdn.skypack.dev/-/react@v17.0.1-yH0aYV1FOvoIPeKBbHxg/dist=es2019,mode=types/global.d.ts": "ecf78e637f710f340ec08d5d92b3f31b134a46a4fcf2e758690d8c46ce62cba6",
+  "https://cdn.skypack.dev/-/react@v17.0.1-yH0aYV1FOvoIPeKBbHxg/dist=es2019,mode=types/index.d.ts": "4fb2db619b0d7ea4f5f25e00f777c8ea425d9c3f7908b60bcb43898fe7388b3e",
+  "https://cdn.skypack.dev/-/scheduler@v0.20.2-PAU9F1YosUNPKr7V4s0j/dist=es2019,mode=imports/optimized/scheduler.js": "1b2c4c48747275ea1fd255424ca897c88759557ba4f3ea06750a74dc4a40b078",
+  "https://cdn.skypack.dev/react-dom@18.2.0/index.js?dts": "95901da21e67a1cd129f3e6842e9386537e745001d0686f1d32a01632185fd84",
+  "https://cdn.skypack.dev/react@18.2.0/index.js?dts": "abb60c0ca31aab69e8b26906186e66d5e384cc9cf930f6c1b023d4ad2fccd9bd",
+  "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno": "54e59ccaa471f2f4eab0b7b125800224f11e0aac5d03a1c08a070b328137d69d",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/deno/browser-ponyfill.js": "7bb06c28187519454fe8783529309ddce4acb6041b965550398ee9b277f0c105",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/base64url.d.ts": "f4795c47c5590c729a1c9b8bb4599a93e2e3eca43828556d1917b712ad07cda6",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/api.d.ts": "b6213094fab47a717faf264968d2d8f544a9ef97be9c3ec23446f8e965b9a998",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/json.d.ts": "01ea1a74ce34be28ec863326711a392fe44c4eacf71633d69a77d461dd853fdd",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/supported.d.ts": "0fb538b1eb3d4ec22caad8ec64386c1c819f74ade7a4822430294a2c4ed0502d",
+  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/browser-ponyfill.d.ts": "0217ef653ebfc1565b27c77025e1df62cadb202897e8485dba7eb9f1e4899046"
+}

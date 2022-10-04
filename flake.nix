@@ -1,34 +1,29 @@
 {
   description = "webauthn-tiny";
   inputs = {
+    deno2nix.inputs.nixpkgs.follows = "nixpkgs";
+    deno2nix.url = "github:SnO2WMaN/deno2nix";
     flake-utils.url = "github:numtide/flake-utils";
-    godev.inputs.nixpkgs.follows = "nixpkgs";
-    godev.url = "github:jmbaur/godev";
     nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
+    esbuild-nixpkgs-pin.url = "nixpkgs/a2b3b7593440cbd1726bb0ec4616347652b2adb5";
   };
   outputs = inputs: with inputs; {
-    overlays.default = _: prev: {
-      webauthn-tiny-ui = prev.mkYarnPackage {
-        src = ./frontend;
-        extraBuildInputs = [ inputs.godev.packages.${prev.system}.default ];
-        checkPhase = "yarn run check";
-        buildPhase = "yarn run build";
-        installPhase = "cp -r deps/webauthn-tiny-ui/dist $out";
-        doDist = false;
-      };
-      webauthn-tiny = prev.callPackage ./. { };
-    };
     nixosModules.default = {
-      nixpkgs.overlays = [ self.overlays.default ];
+      nixpkgs.overlays = [
+        (_: prev: {
+          webauthn-tiny = self.packages.${prev.system}.default;
+          webauthn-tiny-ui = self.packages.${prev.system}.ui;
+        })
+      ];
       imports = [ ./module.nix ];
     };
-  } // flake-utils.lib.eachDefaultSystem (system:
+  } // flake-utils.lib.eachSystem [ "aarch64-linux" "x86_64-linux" ] (system:
     let
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ godev.overlays.default self.overlays.default ];
+        overlays = [ deno2nix.overlays.default ];
       };
       preCommitHooks = pre-commit.lib.${system}.run {
         src = ./.;
@@ -40,21 +35,26 @@
           rustfmt.enable = true;
         };
       };
+      ESBUILD_BINARY_PATH = "${esbuild-nixpkgs-pin.legacyPackages.${system}.esbuild}/bin/esbuild";
     in
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
-      packages.ui = pkgs.webauthn-tiny-ui;
-      packages.default = pkgs.webauthn-tiny;
+      packages.default = pkgs.callPackage ./. { };
+      packages.ui = pkgs.callPackage ./frontend {
+        inherit (self.packages.${system}) packup;
+      };
+      packages.packup = pkgs.callPackage ./frontend/packup {
+        inherit ESBUILD_BINARY_PATH;
+      };
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
-        inherit (pkgs.webauthn-tiny) RUSTFLAGS;
+        inherit (self.packages.${system}.default) RUSTFLAGS;
+        inherit ESBUILD_BINARY_PATH;
         WEBAUTHN_TINY_LOG = "debug";
-        nativeBuildInputs = pkgs.webauthn-tiny.nativeBuildInputs;
-        buildInputs = pkgs.webauthn-tiny.buildInputs
-          ++ pkgs.webauthn-tiny-ui.buildInputs
+        nativeBuildInputs = self.packages.${system}.default.nativeBuildInputs;
+        buildInputs = self.packages.${system}.default.buildInputs
+          ++ self.packages.${system}.ui.buildInputs
           ++ [
-          pkgs.cargo-edit
-          pkgs.godev
           (pkgs.writeShellScriptBin "update-domain-list" ''
             ${pkgs.curl}/bin/curl --silent https://www.iana.org/domains/root/db |
               ${pkgs.htmlq}/bin/htmlq --text td span a |

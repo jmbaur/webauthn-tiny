@@ -1,5 +1,5 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
+import * as React from "https://cdn.skypack.dev/react@18.2.0/index.js?dts";
+import * as ReactDOM from "https://cdn.skypack.dev/react-dom@18.2.0/index.js?dts";
 import {
   create,
   CredentialCreationOptionsJSON,
@@ -7,9 +7,9 @@ import {
   get,
   parseCreationOptionsFromJSON,
   parseRequestOptionsFromJSON,
-} from "@github/webauthn-json/browser-ponyfill";
+} from "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno";
 
-import { domainCheck } from "./domaincheck";
+import { domainCheck } from "./domaincheck.ts";
 
 type Credential = {
   id: string;
@@ -68,7 +68,7 @@ function App() {
     if (!window.PublicKeyCredential) return;
 
     const params = new URLSearchParams(window.location.search);
-    let redirect_url = params.get("url");
+    const redirect_url = params.get("url");
 
     function resolveAuth() {
       if (redirect_url !== null && domainCheck(document.domain, redirect_url)) {
@@ -198,6 +198,4 @@ function App() {
   );
 }
 
-const container = document.getElementById("app");
-const root = createRoot(container!);
-root.render(<App />);
+ReactDOM.render(<App />, document.getElementById("app"));

@@ -1,4 +1,4 @@
-import { domainCheck } from "./domaincheck";
+import { domainCheck } from "./domaincheck.ts";
 
 function assert(bool: boolean) {
   if (!bool) throw new Error("assert");
