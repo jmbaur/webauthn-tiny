@@ -320,9 +320,14 @@ pub async fn get_credentials_template_handler(
     shared_state: Extension<SharedAppState>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("credentials.liquid") {
-        let parsed_template = parser
-            .parse(std::str::from_utf8(&template.data).unwrap())
-            .unwrap();
+        let parsed_template =
+            match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!("parser.parse: {e}");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                }
+            };
 
         let app = shared_state.read().await;
         if let Ok(user) = app.get_user_with_credentials(username).await {
@@ -371,9 +376,14 @@ pub async fn get_authenticate_template_handler(
     webauthn: Extension<Arc<Webauthn>>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("authenticate.liquid") {
-        let parsed_template = parser
-            .parse(std::str::from_utf8(&template.data).unwrap())
-            .unwrap();
+        let parsed_template =
+            match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!("parser.parse: {e}");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                }
+            };
         let globals = liquid::object!({
             "username": username,
         });
@@ -382,7 +392,13 @@ pub async fn get_authenticate_template_handler(
             .redirect_url
             .clone()
             .unwrap_or_else(|| (state.origin.clone() + "/credentials"));
-        let url = url::Url::parse(&redirect_url).unwrap();
+        let url = match url::Url::parse(&redirect_url) {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::error!("url::Url::parse: {e}");
+                return (StatusCode::BAD_REQUEST, Html(String::new()));
+            }
+        };
         if !webauthn
             .get_allowed_origins()
             .iter()
