@@ -136,6 +136,8 @@ in
               extraConfig = ''
                 auth_request /api/validate;
                 error_page 401 = @error401;
+                auth_request_set $set_cookie $upstream_http_set_cookie;
+                more_set_headers "Set-Cookie: $set_cookie";
               '';
             };
           };
