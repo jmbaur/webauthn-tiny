@@ -5,7 +5,13 @@
 		<title>WebAuthnTiny</title>
 	</head>
 	<body>
-		<div>Authenticating for {{ username }}</div>
+		<div>
+			{% if logged_in %}
+				{{ username }} already logged in
+			{% else %}
+				Authenticating for {{ username }}
+			{% endif %}
+		</div>
 		<script src="/main.js"></script>
 	</body>
 </html>

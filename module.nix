@@ -95,7 +95,7 @@ in
             error_page 401 = @error401;
           '';
           locations."= /auth" = {
-            proxyPass = "http://[::1]:8080/validate";
+            proxyPass = "http://[::1]:8080/api/validate";
             extraConfig = ''
               proxy_pass_request_body off;
               proxy_set_header Content-Length "";
@@ -110,33 +110,31 @@ in
               extraConfig = extraConfig + ''
                 proxy_set_header Host            $host;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Remote-User   $remote_user;
               '';
             };
           in
           {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
-            inherit (cfg.nginx) basicAuthFile basicAuth;
-            locations."= /".return = "301 /credentials";
-            locations."/credentials" = withProxy {
-              extraConfig = ''
-                auth_request /validate;
-                error_page 401 = @error401;
-              '';
-            };
-            locations."/authenticate" = withProxy { };
-            locations."/api" = withProxy { };
-            locations."= /validate" = withProxy {
-              extraConfig = ''
-                auth_basic off;
-              '';
-            };
+            locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
             locations."/" = {
               root = "${pkgs.webauthn-tiny-ui}";
               tryFiles = "$uri /index.html =404";
             };
-            locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
+            locations."= /".return = "301 /credentials";
+            locations."/api" = withProxy { };
+            locations."/authenticate" = withProxy {
+              inherit (cfg.nginx) basicAuthFile basicAuth;
+              extraConfig = ''
+                proxy_set_header X-Remote-User   $remote_user;
+              '';
+            };
+            locations."/credentials" = withProxy {
+              extraConfig = ''
+                auth_request /api/validate;
+                error_page 401 = @error401;
+              '';
+            };
           };
       };
     };

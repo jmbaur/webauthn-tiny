@@ -1,9 +1,13 @@
 use crate::app;
 use app::SharedAppState;
 use async_trait::async_trait;
-use axum::extract::{FromRequest, Path, Query, RequestParts};
-use axum::response::{Html, Redirect};
-use axum::{extract, http::StatusCode, Extension, Json};
+use axum::{
+    extract::{self, FromRequest, Path, Query, RequestParts},
+    http::{HeaderMap, Request, StatusCode},
+    middleware::Next,
+    response::{Html, IntoResponse, Redirect, Response},
+    Extension, Json,
+};
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
 use rust_embed::RustEmbed;
@@ -20,69 +24,80 @@ const SESSIONKEY_LOGGEDIN: &str = "logged_in";
 const SESSIONKEY_PASSKEYREGISTRATION: &str = "passkey_registration";
 const SESSIONKEY_PASSKEYAUTHENTICATION: &str = "passkey_authentication";
 const SESSIONKEY_REDIRECTURL: &str = "redirect_url";
+const SESSIONKEY_USERNAME: &str = "username";
 
-pub struct RequireLoggedIn;
+pub struct LoggedIn(bool);
 
 #[async_trait]
-impl<B> FromRequest<B> for RequireLoggedIn
+impl<B> FromRequest<B> for LoggedIn
 where
     B: Send,
 {
     type Rejection = StatusCode;
-
-    // TODO(jared): On top of ensuring the client's cookie is associated with a session where the
-    // user is logged in, should we also ensure that the username for the session matches with the
-    // authenticated user? This would mean that a user who exists in the database could not use the
-    // cookie from another user in order to pass authentication. Currently, only the username value
-    // from the X-Remote-User header is used for fetching a users information, however it could use
-    // the username value from the existing session. This really only makes sense if the username
-    // is validated with the existing session.
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        tracing::trace!("RequireLoggedIn extractor");
-
+        tracing::trace!("LoggedIn extractor");
         if let Ok(session) = ReadableSession::from_request(req).await {
             if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
-                return Ok(Self);
+                return Ok(LoggedIn(true));
             }
         }
-        Err(StatusCode::UNAUTHORIZED)
+        Ok(LoggedIn(false))
     }
 }
 
-pub struct XRemoteUser(String);
-
-#[async_trait]
-impl<B> FromRequest<B> for XRemoteUser
+pub async fn require_logged_in<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode>
 where
     B: Send,
 {
-    type Rejection = StatusCode;
-
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        tracing::trace!("XRemoteUser extractor");
-
-        if let Some(x_remote_user) = req.headers().get("X-Remote-User") {
-            if let Ok(val) = x_remote_user.to_str() {
-                Ok(XRemoteUser(String::from(val)))
+    let mut request_parts = RequestParts::new(req);
+    match LoggedIn::from_request(&mut request_parts).await {
+        Ok(LoggedIn(logged_in)) => {
+            if logged_in {
+                let req = request_parts.try_into_request().expect("body extracted");
+                Ok(next.run(req).await)
             } else {
-                tracing::error!("could not conver header value to string");
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                Err(StatusCode::UNAUTHORIZED)
             }
-        } else {
-            tracing::info!("no X-Remote-User header present");
-            Err(StatusCode::UNAUTHORIZED)
         }
+        Err(_) => unreachable!(),
+    }
+}
+
+/// redirector expects there to be an existing (validated) redirect URL in the session's data.
+pub async fn redirector<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode>
+where
+    B: Send,
+{
+    let mut request_parts = RequestParts::new(req);
+    match LoggedIn::from_request(&mut request_parts).await {
+        Ok(LoggedIn(logged_in)) => {
+            if logged_in {
+                if let Ok(mut session) = WritableSession::from_request(&mut request_parts).await {
+                    if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
+                        session.remove(SESSIONKEY_REDIRECTURL);
+                        return Ok(Redirect::temporary(&redirect_url).into_response());
+                    }
+                }
+            }
+            let req = request_parts.try_into_request().expect("body extracted");
+            Ok(next.run(req).await)
+        }
+        Err(_) => unreachable!(),
     }
 }
 
 #[debug_handler]
 pub async fn register_start_handler(
-    XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Json<CreationChallengeResponse>, StatusCode> {
     tracing::trace!("register_start_handler");
+
+    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
+        Some(u) => u,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
 
     let app = shared_state.read().await;
     let user = app.get_user_with_credentials(username).await?;
@@ -121,13 +136,17 @@ pub struct RegisterEndRequestPayload {
 
 #[debug_handler]
 pub async fn register_end_handler(
-    XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
     payload: extract::Json<RegisterEndRequestPayload>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<(), StatusCode> {
     tracing::trace!("register_end_handler");
+
+    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
+        Some(u) => u,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
 
     let app = shared_state.read().await;
 
@@ -170,17 +189,16 @@ pub struct AuthenticateStartResponsePayload {
 
 #[debug_handler]
 pub async fn authenticate_start_handler(
-    XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Json<AuthenticateStartResponsePayload>, StatusCode> {
     tracing::trace!("authenticate_start_handler");
 
-    if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
-        tracing::debug!("user already logged in");
-        return Ok(Json(AuthenticateStartResponsePayload { challenge: None }));
-    }
+    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
+        Some(u) => u,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
 
     let user = shared_state
         .read()
@@ -221,18 +239,13 @@ pub async fn authenticate_start_handler(
     }))
 }
 
-#[derive(Serialize)]
-pub struct AuthenticateEndResponsePayload {
-    pub redirect_url: String,
-}
-
 #[debug_handler]
 pub async fn authenticate_end_handler(
     mut session: WritableSession,
     payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> Result<Json<AuthenticateEndResponsePayload>, StatusCode> {
+) -> Result<(), StatusCode> {
     tracing::trace!("authenticate_end_handler");
 
     let passkey_authentication =
@@ -261,14 +274,7 @@ pub async fn authenticate_end_handler(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
-        session.remove(SESSIONKEY_REDIRECTURL);
-        Ok(Json(AuthenticateEndResponsePayload { redirect_url }))
-    } else {
-        Ok(Json(AuthenticateEndResponsePayload {
-            redirect_url: format!("{}/{}", state.origin, "credentials"),
-        }))
-    }
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]
@@ -300,23 +306,30 @@ pub struct CredentialIDWithName {
 
 #[debug_handler]
 pub async fn get_credentials_template_handler(
-    XRemoteUser(username): XRemoteUser,
+    session: ReadableSession,
     parser: Extension<Arc<liquid::Parser>>,
     shared_state: Extension<SharedAppState>,
-) -> (StatusCode, Html<String>) {
+) -> Result<Html<String>, StatusCode> {
+    tracing::trace!("get_credentials_template_handler");
+
+    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
+        Some(u) => u,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
     if let Some(template) = Templates::get("credentials.liquid") {
         let parsed_template =
             match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!("parser.parse: {e}");
-                    return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
             };
 
         let app = shared_state.read().await;
         if let Ok(user) = app.get_user_with_credentials(username).await {
-            let credentials: Vec<CredentialIDWithName> = dbg!(user
+            let credentials: Vec<CredentialIDWithName> = user
                 .credentials
                 .iter()
                 .map(|c| {
@@ -326,79 +339,98 @@ pub async fn get_credentials_template_handler(
                         name: c.name,
                     }
                 })
-                .collect());
+                .collect();
 
-            let globals = liquid::object!({
-                "credentials": credentials,
-            });
-
-            if let Ok(output) = parsed_template.render(&globals) {
-                (StatusCode::OK, Html(output))
+            let tmpl_data = liquid::object!({ "credentials": credentials });
+            if let Ok(output) = parsed_template.render(&tmpl_data) {
+                Ok(Html(output))
             } else {
-                (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         } else {
-            (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     } else {
-        // TODO(jared): don't do this
-        (StatusCode::NOT_FOUND, Html(String::new()))
+        Err(StatusCode::NOT_FOUND)
     }
 }
 
 #[derive(Deserialize)]
 pub struct GetAuthenticateQueryParams {
-    pub redirect_url: String,
+    pub redirect_url: Option<String>,
 }
 
 #[debug_handler]
 pub async fn get_authenticate_template_handler(
+    LoggedIn(logged_in): LoggedIn,
     params: Query<GetAuthenticateQueryParams>,
-    XRemoteUser(username): XRemoteUser,
+    headers: HeaderMap,
     mut session: WritableSession,
     parser: Extension<Arc<liquid::Parser>>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> (StatusCode, Html<String>) {
+) -> Result<Html<String>, StatusCode> {
+    tracing::trace!("get_authenticate_template_handler");
+    let username = match headers.get("X-Remote-User") {
+        Some(h) => {
+            if let Ok(val) = h.to_str() {
+                String::from(val)
+            } else {
+                tracing::error!(
+                    "could not convert X-Remote-User header value '{:#?}' to string",
+                    h
+                );
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
+        tracing::error!("session.insert: {e}");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
     if let Some(template) = Templates::get("authenticate.liquid") {
         let parsed_template =
             match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!("parser.parse: {e}");
-                    return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
             };
-        let globals = liquid::object!({ "username": username });
-        let url = match url::Url::parse(&params.redirect_url) {
-            Ok(u) => u,
-            Err(e) => {
-                tracing::error!("url::Url::parse: {e}");
-                return (StatusCode::BAD_REQUEST, Html(String::new()));
+        let tmpl_data = liquid::object!({
+            "username": username,
+            "logged_in": logged_in,
+        });
+        if let Some(redirect_url) = &params.redirect_url {
+            let url = match url::Url::parse(redirect_url) {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::error!("url::Url::parse: {e}");
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+            };
+            if !webauthn
+                .get_allowed_origins()
+                .iter()
+                .any(|u| u.origin() == url.origin())
+            {
+                tracing::info!("denied client request for redirect to {}", redirect_url);
+                return Err(StatusCode::FORBIDDEN);
             }
-        };
-        if !webauthn
-            .get_allowed_origins()
-            .iter()
-            .any(|u| u.origin() == url.origin())
-        {
-            tracing::info!(
-                "denied client request for redirect to {}",
-                params.redirect_url
-            );
-            return (StatusCode::FORBIDDEN, Html(String::new()));
-        }
-        if let Ok(output) = parsed_template.render(&globals) {
-            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, params.redirect_url.clone()) {
+            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
                 tracing::error!("session.insert: {e}");
-                return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
-            (StatusCode::OK, Html(output))
+        }
+        if let Ok(output) = parsed_template.render(&tmpl_data) {
+            Ok(Html(output))
         } else {
-            (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()))
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     } else {
-        // TODO(jared): don't do this
-        (StatusCode::NOT_FOUND, Html(String::new()))
+        Err(StatusCode::NOT_FOUND)
     }
 }
 

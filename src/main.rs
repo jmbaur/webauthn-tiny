@@ -12,8 +12,8 @@ use axum_sessions::SessionLayer;
 use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
-    get_authenticate_template_handler, get_credentials_template_handler, register_end_handler,
-    register_start_handler, RequireLoggedIn,
+    get_authenticate_template_handler, get_credentials_template_handler, redirector,
+    register_end_handler, register_start_handler, require_logged_in,
 };
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -66,33 +66,38 @@ async fn main() -> anyhow::Result<()> {
     let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;
 
-    let require_logged_in = middleware::from_extractor::<RequireLoggedIn>();
-
     let parser = liquid::ParserBuilder::with_stdlib().build()?;
 
     let router = Router::new()
         .route(
+            "/api/validate",
+            get(|| async {}).layer(middleware::from_fn(require_logged_in)),
+        )
+        // for registering a new credential
+        .route(
             "/api/register",
             get(register_start_handler)
                 .post(register_end_handler)
-                .layer(require_logged_in.clone()),
+                .layer(middleware::from_fn(require_logged_in)),
         )
-        .route(
-            "/api/credentials/:cred_id",
-            delete(delete_credentials_api_handler).layer(require_logged_in.clone()),
-        )
+        // for authenticating with an existing credential
         .route(
             "/api/authenticate",
             get(authenticate_start_handler).post(authenticate_end_handler),
         )
         .route(
-            "/validate",
-            get(|| async {}).layer(require_logged_in.clone()),
+            "/api/credentials/:cred_id",
+            delete(delete_credentials_api_handler).layer(middleware::from_fn(require_logged_in)),
         )
-        .route("/authenticate", get(get_authenticate_template_handler))
+        // returns HTML
+        .route(
+            "/authenticate",
+            get(get_authenticate_template_handler).layer(middleware::from_fn(redirector)),
+        )
+        // returns HTML
         .route(
             "/credentials",
-            get(get_credentials_template_handler).layer(require_logged_in),
+            get(get_credentials_template_handler).layer(middleware::from_fn(require_logged_in)),
         )
         .layer(
             ServiceBuilder::new()
