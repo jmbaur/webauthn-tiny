@@ -93,11 +93,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  if (location.pathname === "/authenticate") {
-    validateLoggedIn().then((loggedIn) => {
-      if (!loggedIn) {
-        startAuthentication().then(endAuthentication).catch(console.error);
-      }
-    });
+  if (document.getElementById("authenticating-msg") !== null) {
+    startAuthentication().then(endAuthentication).catch(console.error);
   }
 });
