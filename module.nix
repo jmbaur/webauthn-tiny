@@ -92,18 +92,17 @@ in
         (_: {
           extraConfig = ''
             auth_request /auth;
-            auth_request_set $new_cookie $sent_http_set_cookie;
-            add_header Set-Cookie $new_cookie;
             error_page 401 = @error401;
           '';
           locations."= /auth" = {
             proxyPass = "http://[::1]:8080/api/validate";
             extraConfig = ''
+              internal;
               proxy_pass_request_body off;
               proxy_set_header Content-Length "";
             '';
           };
-          locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
+          locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
         }) // {
         ${cfg.nginx.virtualHost} =
           let
@@ -118,7 +117,7 @@ in
           {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
-            locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
+            locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
             locations."/" = {
               root = "${pkgs.webauthn-tiny-ui}";
               tryFiles = "$uri /index.html =404";
@@ -134,8 +133,6 @@ in
             locations."/credentials" = withProxy {
               extraConfig = ''
                 auth_request /api/validate;
-                auth_request_set $new_cookie $sent_http_set_cookie; # use sent_http_*, not upstream_http_*
-                add_header Set-Cookie $new_cookie;
                 error_page 401 = @error401;
               '';
             };

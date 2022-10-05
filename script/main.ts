@@ -36,7 +36,7 @@ async function endAuthentication(opts: CredentialRequestOptions) {
   });
 
   if (!response.ok) return window.alert("not authenticated");
-  location.reload(); // client is now logged in
+  location.replace("/authenticate"); // client is now logged in
 }
 
 document.addEventListener("DOMContentLoaded", function () {
