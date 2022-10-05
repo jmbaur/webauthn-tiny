@@ -182,17 +182,12 @@ pub async fn register_end_handler(
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct AuthenticateStartResponsePayload {
-    challenge: Option<RequestChallengeResponse>,
-}
-
 #[debug_handler]
 pub async fn authenticate_start_handler(
     mut session: WritableSession,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> Result<Json<AuthenticateStartResponsePayload>, StatusCode> {
+) -> Result<Json<RequestChallengeResponse>, StatusCode> {
     tracing::trace!("authenticate_start_handler");
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
@@ -212,7 +207,7 @@ pub async fn authenticate_start_handler(
             tracing::error!("session.insert: {e}");
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
-        return Ok(Json(AuthenticateStartResponsePayload { challenge: None }));
+        return Err(StatusCode::NO_CONTENT);
     }
 
     let passkeys: Vec<_> = user
@@ -234,9 +229,7 @@ pub async fn authenticate_start_handler(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    Ok(Json(AuthenticateStartResponsePayload {
-        challenge: Some(req_chal),
-    }))
+    Ok(Json(req_chal))
 }
 
 #[debug_handler]

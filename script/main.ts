@@ -8,18 +8,21 @@ import {
   parseRequestOptionsFromJSON,
 } from "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno";
 
+async function validateLoggedIn(): Promise<boolean> {
+  const response = await fetch("/api/validate");
+  return response.status === 200;
+}
+
 async function startAuthentication(): Promise<CredentialRequestOptions> {
   const response = await fetch("/api/authenticate", { method: "GET" });
   if (!response.ok) {
-    throw new Error("Failed to start authentication");
+    const msg = "failed to start authentication";
+    window.alert(msg);
+    throw new Error(msg);
   }
-  const data: { challenge: null | CredentialRequestOptionsJSON } =
-    await response.json();
-  if (data.challenge === null) {
-    window.alert("did not get challenge from server");
-    throw new Error("did not get challenge from server");
-  }
-  return parseRequestOptionsFromJSON(data.challenge);
+  if (response.status === 204) location.reload(); // no user credentials
+  const challenge: CredentialRequestOptionsJSON = await response.json();
+  return parseRequestOptionsFromJSON(challenge);
 }
 
 async function endAuthentication(opts: CredentialRequestOptions) {
@@ -32,13 +35,8 @@ async function endAuthentication(opts: CredentialRequestOptions) {
     body,
   });
 
-  if (!response.ok) {
-    window.alert("not authenticated");
-    throw new Error("not authenticated");
-  }
-  // client is now logged in, reload to make server redirect client to final
-  // location.
-  location.reload();
+  if (!response.ok) return window.alert("not authenticated");
+  location.reload(); // client is now logged in
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -54,9 +52,7 @@ document.addEventListener("DOMContentLoaded", function () {
           const response = await fetch(`/api/credentials/${cred_id}`, {
             method: "DELETE",
           });
-          if (response.status === 204) {
-            location.reload();
-          }
+          if (response.status === 204) location.reload();
         } catch (err) {
           console.error(err);
           window.alert(err);
@@ -98,6 +94,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   if (location.pathname === "/authenticate") {
-    startAuthentication().then(endAuthentication).catch(console.error);
+    validateLoggedIn().then((loggedIn) => {
+      if (!loggedIn) {
+        startAuthentication().then(endAuthentication).catch(console.error);
+      }
+    });
   }
 });
