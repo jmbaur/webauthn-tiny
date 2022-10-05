@@ -28,7 +28,7 @@ impl<B> FromRequest<B> for RequireLoggedIn
 where
     B: Send,
 {
-    type Rejection = Redirect;
+    type Rejection = StatusCode;
 
     // TODO(jared): On top of ensuring the client's cookie is associated with a session where the
     // user is logged in, should we also ensure that the username for the session matches with the
@@ -45,10 +45,7 @@ where
                 return Ok(Self);
             }
         }
-
-        Err(Redirect::temporary(
-            "/authenticate?redirect_url=/credentials",
-        ))
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
 
@@ -75,15 +72,6 @@ where
             tracing::info!("no X-Remote-User header present");
             Err(StatusCode::UNAUTHORIZED)
         }
-    }
-}
-
-#[debug_handler]
-pub async fn validate_handler(session: ReadableSession) -> StatusCode {
-    if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
-        StatusCode::OK
-    } else {
-        StatusCode::UNAUTHORIZED
     }
 }
 
@@ -360,7 +348,7 @@ pub async fn get_credentials_template_handler(
 
 #[derive(Deserialize)]
 pub struct GetAuthenticateQueryParams {
-    pub redirect_url: Option<String>,
+    pub redirect_url: String,
 }
 
 #[debug_handler]
@@ -369,7 +357,6 @@ pub async fn get_authenticate_template_handler(
     XRemoteUser(username): XRemoteUser,
     mut session: WritableSession,
     parser: Extension<Arc<liquid::Parser>>,
-    shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> (StatusCode, Html<String>) {
     if let Some(template) = Templates::get("authenticate.liquid") {
@@ -381,15 +368,8 @@ pub async fn get_authenticate_template_handler(
                     return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
                 }
             };
-        let globals = liquid::object!({
-            "username": username,
-        });
-        let state = shared_state.read().await;
-        let redirect_url = params
-            .redirect_url
-            .clone()
-            .unwrap_or_else(|| format!("{}/{}", state.origin, "credentials"));
-        let url = match url::Url::parse(&redirect_url) {
+        let globals = liquid::object!({ "username": username });
+        let url = match url::Url::parse(&params.redirect_url) {
             Ok(u) => u,
             Err(e) => {
                 tracing::error!("url::Url::parse: {e}");
@@ -401,11 +381,14 @@ pub async fn get_authenticate_template_handler(
             .iter()
             .any(|u| u.origin() == url.origin())
         {
-            tracing::info!("denied client request for redirect to {redirect_url}");
+            tracing::info!(
+                "denied client request for redirect to {}",
+                params.redirect_url
+            );
             return (StatusCode::FORBIDDEN, Html(String::new()));
         }
         if let Ok(output) = parsed_template.render(&globals) {
-            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
+            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, params.redirect_url.clone()) {
                 tracing::error!("session.insert: {e}");
                 return (StatusCode::INTERNAL_SERVER_ERROR, Html(String::new()));
             }

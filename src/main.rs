@@ -13,7 +13,7 @@ use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
     get_authenticate_template_handler, get_credentials_template_handler, register_end_handler,
-    register_start_handler, validate_handler, RequireLoggedIn,
+    register_start_handler, RequireLoggedIn,
 };
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -85,7 +85,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/authenticate",
             get(authenticate_start_handler).post(authenticate_end_handler),
         )
-        .route("/validate", get(validate_handler))
+        .route(
+            "/validate",
+            get(|| async {}).layer(require_logged_in.clone()),
+        )
         .route("/authenticate", get(get_authenticate_template_handler))
         .route(
             "/credentials",

@@ -119,7 +119,12 @@ in
             forceSSL = true; # webauthn is only available over HTTPS
             inherit (cfg.nginx) basicAuthFile basicAuth;
             locations."= /".return = "301 /credentials";
-            locations."/credentials" = withProxy { };
+            locations."/credentials" = withProxy {
+              extraConfig = ''
+                auth_request /validate;
+                error_page 401 = @error401;
+              '';
+            };
             locations."/authenticate" = withProxy { };
             locations."/api" = withProxy { };
             locations."= /validate" = withProxy {
@@ -131,6 +136,7 @@ in
               root = "${pkgs.webauthn-tiny-ui}";
               tryFiles = "$uri /index.html =404";
             };
+            locations."@error401".return = "307 https://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
           };
       };
     };
