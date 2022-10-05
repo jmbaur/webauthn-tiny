@@ -14,8 +14,7 @@ use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
-use webauthn_rs::Webauthn;
+use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
     RequestChallengeResponse,
@@ -411,25 +410,14 @@ pub async fn get_authenticate_template_handler(
             "logged_in": logged_in,
         });
         if let Some(redirect_url) = &params.redirect_url {
-            let url = match url::Url::parse(redirect_url) {
-                Ok(u) => u,
-                Err(e) => {
-                    tracing::error!("url::Url::parse: {e}");
-                    return Err(StatusCode::BAD_REQUEST);
-                }
-            };
-            if !webauthn
-                .get_allowed_origins()
-                .iter()
-                .any(|u| u.origin() == url.origin())
+            if let Ok(accepted_redirect_url) =
+                get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
             {
-                tracing::info!("denied client request for redirect to {}", redirect_url);
-                return Err(StatusCode::FORBIDDEN);
-            }
-            if !logged_in {
-                if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
-                    tracing::error!("session.insert: {e}");
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                if !logged_in {
+                    if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url) {
+                        tracing::error!("session.insert: {e}");
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
                 }
             }
         }
@@ -443,13 +431,28 @@ pub async fn get_authenticate_template_handler(
     }
 }
 
+fn get_redirect_url(requested_url: String, allowed_origins: &[Url]) -> anyhow::Result<String> {
+    if let Ok(url) = Url::parse(&requested_url) {
+        if allowed_origins.iter().any(|u| u.origin() == url.origin()) {
+            Ok(requested_url)
+        } else {
+            anyhow::bail!("origin not allowed")
+        }
+    } else if requested_url.starts_with('/') {
+        Ok(requested_url)
+    } else {
+        anyhow::bail!("bad url")
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::handlers::get_redirect_url;
     use webauthn_rs::prelude::*;
     use webauthn_rs::WebauthnBuilder;
 
     #[test]
-    fn webauthn_allowed_origins() {
+    fn test_get_redirect_url() {
         let webauthn =
             WebauthnBuilder::new("foo.com", &Url::parse("https://auth.foo.com").unwrap())
                 .unwrap()
@@ -461,26 +464,30 @@ mod tests {
 
         // passes
         [
+            "/somepath",
             "https://bar.foo.com",
             "https://auth.foo.com",
             "https://foo.com",
         ]
         .iter()
         .for_each(|&url| {
-            assert!(webauthn
-                .get_allowed_origins()
-                .iter()
-                .any(|u| u.origin() == Url::parse(url).unwrap().origin()));
+            assert_eq!(
+                url,
+                get_redirect_url(url.to_string(), webauthn.get_allowed_origins()).unwrap(),
+                "url not accepted by get_redirect_url: {}",
+                url
+            );
         });
 
         // fails
         ["https://fo.com", "https://foo.bar.com"]
             .iter()
             .for_each(|&url| {
-                assert!(webauthn
-                    .get_allowed_origins()
-                    .iter()
-                    .any(|u| u.origin() != Url::parse(url).unwrap().origin()));
+                assert!(
+                    get_redirect_url(url.to_string(), webauthn.get_allowed_origins()).is_err(),
+                    "url accepted by get_redirect_url: {}",
+                    url
+                );
             });
     }
 }
