@@ -55,6 +55,7 @@ where
         Ok(LoggedIn(logged_in)) => {
             if logged_in {
                 let req = request_parts.try_into_request().expect("body extracted");
+                increment_counter!("authorized_requests");
                 Ok(next.run(req).await)
             } else {
                 increment_counter!("unauthorized_requests");
@@ -183,6 +184,8 @@ pub async fn register_end_handler(
 
     session.remove(SESSIONKEY_PASSKEYREGISTRATION);
 
+    increment_counter!("successful_webauthn_registrations");
+
     Ok(())
 }
 
@@ -272,6 +275,8 @@ pub async fn authenticate_end_handler(
         tracing::error!("session.insert: {e}");
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
+
+    increment_counter!("successful_webauthn_authentications");
 
     Ok(())
 }

@@ -48,9 +48,12 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let prometheus_handle = PrometheusBuilder::new().install_recorder()?;
-    register_counter!("unauthorized_requests");
+    register_counter!("successful_webauthn_registrations");
     register_counter!("failed_webauthn_registrations");
+    register_counter!("successful_webauthn_authentications");
     register_counter!("failed_webauthn_authentications");
+    register_counter!("authorized_requests");
+    register_counter!("unauthorized_requests");
 
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.rp_origin)?;
