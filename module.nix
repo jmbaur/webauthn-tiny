@@ -94,7 +94,7 @@ in
             auth_request /auth;
             error_page 401 = @error401;
             auth_request_set $set_cookie $upstream_http_set_cookie;
-            more_add_headers Set-Cookie $set_cookie;
+            more_set_headers "Set-Cookie: $set_cookie";
           '';
           locations."= /auth" = {
             proxyPass = "http://[::1]:8080/api/validate";
