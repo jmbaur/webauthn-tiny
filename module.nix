@@ -119,9 +119,9 @@ in
           {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
-            locations."= /".return = "308 /credentials/";
-            locations."~ ^/(credentials|api)/" = withProxy { };
-            locations."~ ^/authenticate/" = withProxy {
+            locations."= /".return = "308 /credentials";
+            locations."^~ ^/(credentials|api)" = withProxy { };
+            locations."^~ ^/authenticate" = withProxy {
               inherit (cfg.nginx) basicAuthFile basicAuth;
               extraConfig = ''
                 proxy_set_header X-Remote-User   $remote_user;
