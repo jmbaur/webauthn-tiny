@@ -409,12 +409,12 @@ pub async fn get_authenticate_template_handler(
                 tracing::info!("denied client request for redirect to {}", redirect_url);
                 return Err(StatusCode::FORBIDDEN);
             }
-            if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
-                tracing::error!("session.insert: {e}");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            if !logged_in {
+                if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, redirect_url) {
+                    tracing::error!("session.insert: {e}");
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
             }
-        } else {
-            session.remove(SESSIONKEY_REDIRECTURL);
         }
         if let Ok(output) = parsed_template.render(&tmpl_data) {
             Ok(Html(output))
