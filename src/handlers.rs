@@ -36,9 +36,11 @@ where
     type Rejection = StatusCode;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
-        if let Ok(session) = ReadableSession::from_request(req).await {
+        if let Ok(mut session) = WritableSession::from_request(req).await {
             if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
                 return Ok(LoggedIn(true));
+            } else {
+                session.destroy();
             }
         }
         Ok(LoggedIn(false))
@@ -336,13 +338,10 @@ pub async fn get_credentials_template_handler(
 
             let tmpl_data = liquid::object!({ "credentials": credentials });
             if let Ok(output) = parsed_template.render(&tmpl_data) {
-                Ok(Html(output))
-            } else {
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                return Ok(Html(output));
             }
-        } else {
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
     } else {
         Err(StatusCode::NOT_FOUND)
     }
@@ -416,6 +415,8 @@ pub async fn get_authenticate_template_handler(
                 tracing::error!("session.insert: {e}");
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
+        } else {
+            session.remove(SESSIONKEY_REDIRECTURL);
         }
         if let Ok(output) = parsed_template.render(&tmpl_data) {
             Ok(Html(output))
