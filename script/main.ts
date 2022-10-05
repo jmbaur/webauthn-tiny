@@ -8,11 +8,6 @@ import {
   parseRequestOptionsFromJSON,
 } from "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno";
 
-async function validateLoggedIn(): Promise<boolean> {
-  const response = await fetch("/api/validate");
-  return response.status === 200;
-}
-
 async function startAuthentication(): Promise<CredentialRequestOptions> {
   const response = await fetch("/api/authenticate", { method: "GET" });
   if (!response.ok) {
