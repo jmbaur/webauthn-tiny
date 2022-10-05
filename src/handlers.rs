@@ -36,11 +36,9 @@ where
     type Rejection = StatusCode;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
-        if let Ok(mut session) = WritableSession::from_request(req).await {
+        if let Ok(session) = ReadableSession::from_request(req).await {
             if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
                 return Ok(LoggedIn(true));
-            } else {
-                session.destroy();
             }
         }
         Ok(LoggedIn(false))

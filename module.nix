@@ -92,6 +92,8 @@ in
         (_: {
           extraConfig = ''
             auth_request /auth;
+            auth_request_set $new_cookie $sent_http_set_cookie; # use sent_http_*, not upstream_http_*
+            add_header Set-Cookie $new_cookie;
             error_page 401 = @error401;
           '';
           locations."= /auth" = {
@@ -132,6 +134,8 @@ in
             locations."/credentials" = withProxy {
               extraConfig = ''
                 auth_request /api/validate;
+                auth_request_set $new_cookie $sent_http_set_cookie; # use sent_http_*, not upstream_http_*
+                add_header Set-Cookie $new_cookie;
                 error_page 401 = @error401;
               '';
             };
