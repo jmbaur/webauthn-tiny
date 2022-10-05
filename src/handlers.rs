@@ -2,8 +2,9 @@ use crate::app;
 use app::SharedAppState;
 use async_trait::async_trait;
 use axum::{
+    body::{boxed, Full},
     extract::{self, FromRequest, Path, Query, RequestParts},
-    http::{HeaderMap, Request, StatusCode},
+    http::{header, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     Extension, Json,
@@ -295,6 +296,45 @@ pub async fn delete_credentials_api_handler(
     let app = shared_state.read().await;
     app.delete_credential(cred_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(RustEmbed)]
+#[folder = "$ASSETS_DIRECTORY"]
+struct Assets;
+
+pub struct AssetFile<T>(pub T);
+
+impl<T> IntoResponse for AssetFile<T>
+where
+    T: Into<String>,
+{
+    fn into_response(self) -> Response {
+        let path = self.0.into();
+
+        match Assets::get(path.as_str()) {
+            Some(content) => {
+                let body = boxed(Full::from(content.data));
+                let mime = mime_guess::from_path(path).first_or_octet_stream();
+                Response::builder()
+                    .header(header::CONTENT_TYPE, mime.as_ref())
+                    .body(body)
+                    .expect("could not build response")
+            }
+            None => Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(boxed(Full::from("404")))
+                .expect("could not build response"),
+        }
+    }
+}
+
+pub async fn root_handler(uri: Uri) -> Response {
+    let path = uri.path().to_string();
+    if path == "/" {
+        Redirect::permanent("/credentials").into_response()
+    } else {
+        AssetFile(path.trim_start_matches('/')).into_response()
+    }
 }
 
 #[derive(RustEmbed)]

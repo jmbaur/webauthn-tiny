@@ -37,7 +37,9 @@
     in
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
-      packages.default = pkgs.callPackage ./. { };
+      packages.default = pkgs.callPackage ./. {
+        ui-assets = self.packages.${system}.ui;
+      };
       packages.script = pkgs.callPackage ./script { };
       packages.ui = pkgs.symlinkJoin {
         name = "webauthn-tiny-ui";

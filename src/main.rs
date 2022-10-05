@@ -4,6 +4,7 @@ mod session;
 
 use app::App;
 use axum::{
+    handler::Handler,
     middleware,
     routing::{delete, get},
     Extension, Router, Server,
@@ -13,7 +14,7 @@ use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
     get_authenticate_template_handler, get_credentials_template_handler, redirector,
-    register_end_handler, register_start_handler, require_logged_in,
+    register_end_handler, register_start_handler, require_logged_in, root_handler,
 };
 use metrics::register_counter;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -112,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
         )
         // returns HTML
         .route("/credentials", get(get_credentials_template_handler))
+        .fallback(root_handler.into_service())
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
