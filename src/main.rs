@@ -15,6 +15,8 @@ use handlers::{
     get_authenticate_template_handler, get_credentials_template_handler, redirector,
     register_end_handler, register_start_handler, require_logged_in,
 };
+use metrics::register_counter;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
@@ -45,6 +47,11 @@ async fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_env("WEBAUTHN_TINY_LOG"))
         .init();
 
+    let prometheus_handle = PrometheusBuilder::new().install_recorder()?;
+    register_counter!("unauthorized_requests", "service" => "webauthn-tiny");
+    register_counter!("failed_webauthn_registrations", "service" => "webauthn-tiny");
+    register_counter!("failed_webauthn_authentications", "service" => "webauthn-tiny");
+
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.rp_origin)?;
     let mut builder = WebauthnBuilder::new(&cli.rp_id, &origin_url)?.allow_subdomains(true);
@@ -69,6 +76,12 @@ async fn main() -> anyhow::Result<()> {
     let parser = liquid::ParserBuilder::with_stdlib().build()?;
 
     let router = Router::new()
+        .route(
+            "/metrics",
+            get(
+                |prom_handle: Extension<Arc<PrometheusHandle>>| async move { prom_handle.render() },
+            ),
+        )
         .route(
             "/api/validate",
             get(|| async {}).layer(middleware::from_fn(require_logged_in)),
@@ -105,7 +118,8 @@ async fn main() -> anyhow::Result<()> {
                 .layer(session_layer)
                 .layer(Extension(Arc::new(RwLock::new(app))))
                 .layer(Extension(Arc::new(webauthn)))
-                .layer(Extension(Arc::new(parser))),
+                .layer(Extension(Arc::new(parser)))
+                .layer(Extension(Arc::new(prometheus_handle))),
         );
 
     tracing::debug!("listening on {}", cli.address);

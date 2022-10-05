@@ -10,6 +10,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
+use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -56,6 +57,7 @@ where
                 let req = request_parts.try_into_request().expect("body extracted");
                 Ok(next.run(req).await)
             } else {
+                increment_counter!("unauthorized_requests");
                 Err(StatusCode::UNAUTHORIZED)
             }
         }
@@ -96,7 +98,7 @@ pub async fn register_start_handler(
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(StatusCode::BAD_REQUEST),
     };
 
     let app = shared_state.read().await;
@@ -145,7 +147,7 @@ pub async fn register_end_handler(
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(StatusCode::BAD_REQUEST),
     };
 
     let app = shared_state.read().await;
@@ -159,7 +161,9 @@ pub async fn register_end_handler(
         Ok(p) => p,
         Err(e) => {
             tracing::error!("webauthn.finish_passkey_registration: {e}");
-            return Err(StatusCode::UNAUTHORIZED);
+            increment_counter!("failed_webauthn_registrations");
+            session.remove(SESSIONKEY_PASSKEYREGISTRATION);
+            return Err(StatusCode::BAD_REQUEST);
         }
     };
 
@@ -170,7 +174,7 @@ pub async fn register_end_handler(
         .iter()
         .any(|c| *c.credential.cred_id() == *passkey.cred_id())
     {
-        tracing::error!("credential already registered");
+        tracing::info!("credential already registered");
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -192,7 +196,7 @@ pub async fn authenticate_start_handler(
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(StatusCode::BAD_REQUEST),
     };
 
     let user = shared_state
@@ -202,7 +206,7 @@ pub async fn authenticate_start_handler(
         .await?;
 
     if user.credentials.is_empty() {
-        tracing::debug!("user does not have any credentials");
+        tracing::info!("user does not have any credentials");
         if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true) {
             tracing::error!("session.insert: {e}");
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -220,7 +224,8 @@ pub async fn authenticate_start_handler(
         Ok(a) => a,
         Err(e) => {
             tracing::error!("webauthn.start_passkey_authentication: {e}");
-            return Err(StatusCode::UNAUTHORIZED);
+            increment_counter!("failed_webauthn_authentications");
+            return Err(StatusCode::BAD_REQUEST);
         }
     };
 
@@ -252,7 +257,8 @@ pub async fn authenticate_end_handler(
             Ok(a) => a,
             Err(e) => {
                 tracing::error!("webauthn.finish_passkey_authentication: {e}");
-                return Err(StatusCode::UNAUTHORIZED);
+                increment_counter!("failed_webauthn_authentications");
+                return Err(StatusCode::BAD_REQUEST);
             }
         };
 
@@ -307,7 +313,7 @@ pub async fn get_credentials_template_handler(
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(StatusCode::BAD_REQUEST),
     };
 
     if let Some(template) = Templates::get("credentials.liquid") {
@@ -372,7 +378,7 @@ pub async fn get_authenticate_template_handler(
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
-        None => return Err(StatusCode::UNAUTHORIZED),
+        None => return Err(StatusCode::BAD_REQUEST),
     };
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
