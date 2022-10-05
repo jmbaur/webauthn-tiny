@@ -111,10 +111,7 @@ async fn main() -> anyhow::Result<()> {
             get(get_authenticate_template_handler).layer(middleware::from_fn(redirector)),
         )
         // returns HTML
-        .route(
-            "/credentials",
-            get(get_credentials_template_handler).layer(middleware::from_fn(redirector)),
-        )
+        .route("/credentials", get(get_credentials_template_handler))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

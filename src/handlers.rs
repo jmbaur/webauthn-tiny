@@ -311,35 +311,21 @@ pub struct CredentialIDWithName {
 #[debug_handler]
 pub async fn get_credentials_template_handler(
     LoggedIn(logged_in): LoggedIn,
-    mut session: WritableSession,
+    session: ReadableSession,
     parser: Extension<Arc<liquid::Parser>>,
     shared_state: Extension<SharedAppState>,
-) -> Result<Html<String>, StatusCode> {
+) -> Response {
     tracing::trace!("get_credentials_template_handler");
 
     let app = shared_state.read().await;
 
     if !logged_in {
-        if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, app.origin.clone() + "/authenticate")
-        {
-            tracing::error!("session.insert: {e}");
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-        // TODO(jared): use axum::response::Redirect
-        return Ok(Html(String::from(
-            r#"<!DOCTYPE html>
-<html>
-  <head>
-    <title>WebAuthnTiny</title>
-    <meta http-equiv="refresh">
-  </head>
-</html>"#,
-        )));
+        return Redirect::temporary("/authenticate?redirect_url=/credentials").into_response();
     }
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
-        None => return Err(StatusCode::BAD_REQUEST),
+        None => return StatusCode::BAD_REQUEST.into_response(),
     };
 
     if let Some(template) = Templates::get("credentials.liquid") {
@@ -348,7 +334,7 @@ pub async fn get_credentials_template_handler(
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!("parser.parse: {e}");
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
             };
 
@@ -367,12 +353,12 @@ pub async fn get_credentials_template_handler(
 
             let tmpl_data = liquid::object!({ "credentials": credentials });
             if let Ok(output) = parsed_template.render(&tmpl_data) {
-                return Ok(Html(output));
+                return Html(output).into_response();
             }
         }
-        Err(StatusCode::INTERNAL_SERVER_ERROR)
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
     } else {
-        Err(StatusCode::NOT_FOUND)
+        StatusCode::NOT_FOUND.into_response()
     }
 }
 
