@@ -119,26 +119,17 @@ in
           {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
-            locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
-            locations."/" = {
-              root = "${pkgs.webauthn-tiny-ui}";
-              tryFiles = "$uri /index.html =404";
-            };
-            locations."= /".return = "301 /credentials";
-            locations."/api" = withProxy { };
-            locations."/authenticate" = withProxy {
+            locations."= /".return = "308 /credentials/";
+            locations."~ ^/(credentials|api)/" = withProxy { };
+            locations."~ ^/authenticate/" = withProxy {
               inherit (cfg.nginx) basicAuthFile basicAuth;
               extraConfig = ''
                 proxy_set_header X-Remote-User   $remote_user;
               '';
             };
-            locations."/credentials" = withProxy {
-              extraConfig = ''
-                auth_request /api/validate;
-                error_page 401 = @error401;
-                auth_request_set $set_cookie $upstream_http_set_cookie;
-                more_set_headers "Set-Cookie: $set_cookie";
-              '';
+            locations."/" = {
+              root = "${pkgs.webauthn-tiny-ui}";
+              tryFiles = "$uri /index.html =404";
             };
           };
       };

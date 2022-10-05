@@ -310,11 +310,32 @@ pub struct CredentialIDWithName {
 
 #[debug_handler]
 pub async fn get_credentials_template_handler(
-    session: ReadableSession,
+    LoggedIn(logged_in): LoggedIn,
+    mut session: WritableSession,
     parser: Extension<Arc<liquid::Parser>>,
     shared_state: Extension<SharedAppState>,
 ) -> Result<Html<String>, StatusCode> {
     tracing::trace!("get_credentials_template_handler");
+
+    let app = shared_state.read().await;
+
+    if !logged_in {
+        if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, app.origin.clone() + "/authenticate")
+        {
+            tracing::error!("session.insert: {e}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        // TODO(jared): use axum::response::Redirect
+        return Ok(Html(String::from(
+            r#"<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebAuthnTiny</title>
+    <meta http-equiv="refresh">
+  </head>
+</html>"#,
+        )));
+    }
 
     let username = match session.get::<String>(SESSIONKEY_USERNAME) {
         Some(u) => u,
@@ -331,7 +352,6 @@ pub async fn get_credentials_template_handler(
                 }
             };
 
-        let app = shared_state.read().await;
         if let Ok(user) = app.get_user_with_credentials(username).await {
             let credentials: Vec<CredentialIDWithName> = user
                 .credentials
@@ -443,7 +463,7 @@ mod tests {
     use webauthn_rs::WebauthnBuilder;
 
     #[test]
-    fn exploration() {
+    fn webauthn_allowed_origins() {
         let webauthn =
             WebauthnBuilder::new("foo.com", &Url::parse("https://auth.foo.com").unwrap())
                 .unwrap()

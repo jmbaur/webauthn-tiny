@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
         // returns HTML
         .route(
             "/credentials",
-            get(get_credentials_template_handler).layer(middleware::from_fn(require_logged_in)),
+            get(get_credentials_template_handler).layer(middleware::from_fn(redirector)),
         )
         .layer(
             ServiceBuilder::new()
