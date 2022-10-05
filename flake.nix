@@ -50,7 +50,15 @@
         inherit (self.packages.${system}.default) RUSTFLAGS;
         WEBAUTHN_TINY_LOG = "debug";
         nativeBuildInputs = self.packages.${system}.default.nativeBuildInputs;
-        buildInputs = self.packages.${system}.default.buildInputs ++ self.packages.${system}.script.buildInputs;
+        buildInputs = self.packages.${system}.default.buildInputs ++ self.packages.${system}.script.buildInputs ++ [
+          (pkgs.writeShellScriptBin "rebuild" ''
+            set -e
+            pushd script
+            deno task build
+            popd
+            cp static/* $out/
+          '')
+        ];
       };
     });
 }

@@ -14,5 +14,5 @@ stdenv.mkDerivation {
   '';
   buildPhase = "deno task build";
   checkPhase = "deno task check";
-  installPhase = "cp -r dist $out";
+  installPhase = "true"; # buildPhase does the install
 }
