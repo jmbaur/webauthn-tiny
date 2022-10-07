@@ -300,7 +300,7 @@ pub async fn delete_credentials_api_handler(
 
 #[derive(RustEmbed)]
 #[folder = "$ASSETS_DIRECTORY"]
-struct Assets;
+pub struct Assets;
 
 pub struct AssetFile<T>(pub T);
 
@@ -339,7 +339,7 @@ pub async fn root_handler(uri: Uri) -> Response {
 
 #[derive(RustEmbed)]
 #[folder = "templates"]
-struct Templates;
+pub struct Templates;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CredentialIDWithName {
@@ -377,25 +377,35 @@ pub async fn get_credentials_template_handler(
                 }
             };
 
-        if let Ok(user) = app.get_user_with_credentials(username).await {
-            let credentials: Vec<CredentialIDWithName> = user
-                .credentials
-                .iter()
-                .map(|c| {
-                    let c = c.clone();
-                    CredentialIDWithName {
-                        id: c.credential.cred_id().to_string(),
-                        name: c.name,
-                    }
-                })
-                .collect();
+        return match app.get_user_with_credentials(username).await {
+            Ok(user) => {
+                let credentials: Vec<CredentialIDWithName> = user
+                    .credentials
+                    .iter()
+                    .map(|c| {
+                        let c = c.clone();
+                        CredentialIDWithName {
+                            id: c.credential.cred_id().to_string(),
+                            name: c.name,
+                        }
+                    })
+                    .collect();
 
-            let tmpl_data = liquid::object!({ "credentials": credentials });
-            if let Ok(output) = parsed_template.render(&tmpl_data) {
-                return Html(output).into_response();
+                let tmpl_data = liquid::object!({ "credentials": credentials });
+
+                return match parsed_template.render(&tmpl_data) {
+                    Ok(html) => Html(html).into_response(),
+                    Err(e) => {
+                        tracing::error!("parsed_template.render: {e}");
+                        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                    }
+                };
             }
-        }
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            Err(e) => {
+                tracing::error!("app.get_user_with_credentials: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        };
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
@@ -461,10 +471,12 @@ pub async fn get_authenticate_template_handler(
                 }
             }
         }
-        if let Ok(output) = parsed_template.render(&tmpl_data) {
-            Ok(Html(output))
-        } else {
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        match parsed_template.render(&tmpl_data) {
+            Ok(html) => Ok(Html(html)),
+            Err(e) => {
+                tracing::error!("parsed_template.render: {e}");
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         }
     } else {
         Err(StatusCode::NOT_FOUND)

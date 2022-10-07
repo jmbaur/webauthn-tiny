@@ -1,19 +1,13 @@
-<!DOCTYPE html>
-<html>
-	<head>
-		<link rel="stylesheet" href="/style.css">
-		<title>WebAuthnTiny</title>
-	</head>
-	<body>
-		{% if logged_in %}
-			<div id="logged-in-msg">
-				User {{ username }} already logged in
-			</div>
-		{% else %}
-			<div id="authenticating-msg">
-				Authenticating for {{ username }}
-			</div>
-		{% endif %}
-		<script src="/main.js"></script>
-	</body>
-</html>
+{% comment %} TODO(jared): Use `render` when this is merged https://github.com/cobalt-org/liquid-rust/pull/472 {% endcomment %}
+{% include "top" %}
+{% if logged_in %}
+	<div id="logged-in-msg">
+		User {{ username }} already logged in
+	</div>
+{% else %}
+	<div id="authenticating-msg">
+		Authenticating for {{ username }}
+	</div>
+{% endif %}
+{% comment %} TODO(jared): Use `render` when this is merged https://github.com/cobalt-org/liquid-rust/pull/472 {% endcomment %}
+{% include "bottom" %}

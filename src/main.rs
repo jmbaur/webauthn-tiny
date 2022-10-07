@@ -77,7 +77,13 @@ async fn main() -> anyhow::Result<()> {
     let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;
 
-    let parser = liquid::ParserBuilder::with_stdlib().build()?;
+    let mut partials_source = liquid::partials::InMemorySource::new();
+    debug_assert!(!partials_source.add("top", include_str!("../templates/top.liquid")));
+    debug_assert!(!partials_source.add("bottom", include_str!("../templates/bottom.liquid")));
+    let partials = liquid::partials::EagerCompiler::new(partials_source);
+    let parser = liquid::ParserBuilder::with_stdlib()
+        .partials(partials)
+        .build()?;
 
     let router = Router::new()
         .route(
