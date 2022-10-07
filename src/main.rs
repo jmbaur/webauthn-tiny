@@ -78,8 +78,18 @@ async fn main() -> anyhow::Result<()> {
     app.init().await?;
 
     let mut partials_source = liquid::partials::InMemorySource::new();
-    debug_assert!(!partials_source.add("top", include_str!("../templates/top.liquid")));
-    debug_assert!(!partials_source.add("bottom", include_str!("../templates/bottom.liquid")));
+
+    partials_source.add(
+        "top",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/top.liquid")),
+    );
+    partials_source.add(
+        "bottom",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/bottom.liquid"
+        )),
+    );
     let partials = liquid::partials::EagerCompiler::new(partials_source);
     let parser = liquid::ParserBuilder::with_stdlib()
         .partials(partials)
