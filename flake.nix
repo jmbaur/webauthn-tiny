@@ -4,7 +4,7 @@
     deno2nix.inputs.nixpkgs.follows = "nixpkgs";
     deno2nix.url = "github:SnO2WMaN/deno2nix";
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?rev=02902f604a39bab67cfb73ceb0182183173b5a24";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
   };
