@@ -4,7 +4,7 @@ let
   deps = deno2nix.internal.mkDepsLink ./deno.lock;
 in
 stdenv.mkDerivation {
-  pname = cargoTOML.package.name + "ui";
+  pname = cargoTOML.package.name + "-ui";
   inherit (cargoTOML.package) version;
   src = ./.;
   buildInputs = [ deno jq ];
