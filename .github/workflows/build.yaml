@@ -1,8 +1,9 @@
 name: build-derivations
 on:
   workflow_dispatch: # allows manual triggering
-  tags:
-    - v0.*
+  push:
+    tags:
+      - v0.*
 jobs:
   build:
     runs-on: ubuntu-latest
