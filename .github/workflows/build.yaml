@@ -15,5 +15,14 @@ jobs:
         with:
           extra_nix_config: |
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+      - name: Use binary cache
+        uses: cachix/cachix-action@v11
+        with:
+          name: jmbaur
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - run: |
-          nix build -L
+          DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -q -y && sudo apt-get install -q -y qemu-system-aarch64 qemu-efi binfmt-support qemu-user-static
+          echo "system-features = aarch64-linux arm-linux" | sudo tee -a /etc/nix/nix.conf
+      - run: |
+          nix build -L --option system aarch64-linux --extra-platforms aarch64-linux
