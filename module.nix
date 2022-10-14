@@ -6,6 +6,7 @@ in
   options = {
     services.webauthn-tiny = {
       enable = lib.mkEnableOption "webauthn-tiny server";
+      package = lib.mkPackageOption pkgs "webauthn-tiny" { };
       environmentFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         description = ''
