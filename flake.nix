@@ -2,7 +2,7 @@
   description = "webauthn-tiny";
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:nixos/nixpkgs?rev=02902f604a39bab67cfb73ceb0182183173b5a24";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
   };
@@ -41,7 +41,6 @@
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.webauthn-tiny;
-      packages.test = pkgs.pkgsCross.aarch64-multiplatform.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
