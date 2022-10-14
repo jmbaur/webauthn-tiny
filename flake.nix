@@ -11,7 +11,10 @@
       webauthn-tiny = prev.callPackage ./. {
         ui-assets = prev.symlinkJoin {
           name = "webauthn-tiny-ui";
-          paths = [ ./static (prev.callPackage ./script { }) ];
+          paths = [
+            ./static
+            (prev.buildPackages.callPackage ./script { })
+          ];
         };
       };
     };
@@ -38,10 +41,11 @@
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.webauthn-tiny;
+      packages.test = pkgs.pkgsCross.aarch64-multiplatform.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
-        buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++
+        buildInputs = with pkgs; [ just yarn2nix yarn nodejs esbuild ] ++
           pkgs.webauthn-tiny.buildInputs;
         WEBAUTHN_TINY_LOG = "debug";
       };
