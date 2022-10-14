@@ -9,20 +9,34 @@
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
   };
   outputs = inputs: with inputs; {
+    overlays.default = _: prev: {
+      webauthn-tiny = prev.callPackage ./. {
+        ui-assets = prev.symlinkJoin {
+          name = "webauthn-tiny-ui";
+          paths = [
+            ./static
+            (
+              let
+                pkgs = import prev.path {
+                  inherit (prev) system;
+                  overlays = [ deno2nix.overlays.default ];
+                };
+              in
+              pkgs.callPackage ./script { }
+            )
+          ];
+        };
+      };
+    };
     nixosModules.default = {
-      nixpkgs.overlays = [
-        (_: prev: {
-          webauthn-tiny = self.packages.${prev.system}.default;
-          webauthn-tiny-ui = self.packages.${prev.system}.ui;
-        })
-      ];
+      nixpkgs.overlays = [ self.overlays.default ];
       imports = [ ./module.nix ];
     };
-  } // flake-utils.lib.eachSystem [ "aarch64-linux" "x86_64-linux" ] (system:
+  } // flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ deno2nix.overlays.default ];
+        overlays = [ self.overlays.default ];
       };
       preCommitHooks = pre-commit.lib.${system}.run {
         src = ./.;
@@ -37,28 +51,12 @@
     in
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
-      packages.default = pkgs.callPackage ./. {
-        ui-assets = self.packages.${system}.ui;
-      };
-      packages.script = pkgs.callPackage ./script { };
-      packages.ui = pkgs.symlinkJoin {
-        name = "webauthn-tiny-ui";
-        paths = [ ./static self.packages.${system}.script ];
-      };
+      packages.default = pkgs.webauthn-tiny;
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
-        inherit (self.packages.${system}.default) RUSTFLAGS;
+        inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
+        buildInputs = with pkgs; [ just deno ] ++ pkgs.webauthn-tiny.buildInputs;
         WEBAUTHN_TINY_LOG = "debug";
-        nativeBuildInputs = self.packages.${system}.default.nativeBuildInputs;
-        buildInputs = self.packages.${system}.default.buildInputs ++ self.packages.${system}.script.buildInputs ++ [
-          (pkgs.writeShellScriptBin "rebuild" ''
-            set -e
-            pushd script
-            deno task build
-            popd
-            cp static/* $out/
-          '')
-        ];
       };
     });
 }
