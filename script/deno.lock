@@ -1,9 +1,0 @@
-{
-  "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno": "54e59ccaa471f2f4eab0b7b125800224f11e0aac5d03a1c08a070b328137d69d",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/deno/browser-ponyfill.js": "7bb06c28187519454fe8783529309ddce4acb6041b965550398ee9b277f0c105",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/base64url.d.ts": "f4795c47c5590c729a1c9b8bb4599a93e2e3eca43828556d1917b712ad07cda6",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/api.d.ts": "b6213094fab47a717faf264968d2d8f544a9ef97be9c3ec23446f8e965b9a998",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/json.d.ts": "01ea1a74ce34be28ec863326711a392fe44c4eacf71633d69a77d461dd853fdd",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/basic/supported.d.ts": "0fb538b1eb3d4ec22caad8ec64386c1c819f74ade7a4822430294a2c4ed0502d",
-  "https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/browser-ponyfill.d.ts": "0217ef653ebfc1565b27c77025e1df62cadb202897e8485dba7eb9f1e4899046"
-}

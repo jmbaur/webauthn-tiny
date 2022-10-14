@@ -1,0 +1,15 @@
+{
+  "name": "script",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild main.ts --bundle --outfile=$out/main.js"
+  },
+  "dependencies": {
+    "@github/webauthn-json": "^2.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.8.4"
+  }
+}

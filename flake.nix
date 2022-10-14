@@ -1,8 +1,6 @@
 {
   description = "webauthn-tiny";
   inputs = {
-    deno2nix.inputs.nixpkgs.follows = "nixpkgs";
-    deno2nix.url = "github:SnO2WMaN/deno2nix";
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs?rev=02902f604a39bab67cfb73ceb0182183173b5a24";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
@@ -13,18 +11,7 @@
       webauthn-tiny = prev.callPackage ./. {
         ui-assets = prev.symlinkJoin {
           name = "webauthn-tiny-ui";
-          paths = [
-            ./static
-            (
-              let
-                pkgs = import prev.path {
-                  inherit (prev) system;
-                  overlays = [ deno2nix.overlays.default ];
-                };
-              in
-              pkgs.callPackage ./script { }
-            )
-          ];
+          paths = [ ./static (prev.callPackage ./script { }) ];
         };
       };
     };
@@ -43,7 +30,6 @@
         hooks = {
           cargo-check.enable = true;
           clippy.enable = true;
-          deno-fmt = { enable = true; entry = "${pkgs.deno}/bin/deno fmt"; types_or = [ "markdown" "ts" "tsx" "json" ]; };
           nixpkgs-fmt.enable = true;
           rustfmt.enable = true;
         };
@@ -55,7 +41,8 @@
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
-        buildInputs = with pkgs; [ just deno ] ++ pkgs.webauthn-tiny.buildInputs;
+        buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++
+          pkgs.webauthn-tiny.buildInputs;
         WEBAUTHN_TINY_LOG = "debug";
       };
     });

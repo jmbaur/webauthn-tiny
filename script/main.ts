@@ -1,4 +1,3 @@
-// @deno-types="https://esm.sh/v96/@github/webauthn-json@2.0.1/dist/types/browser-ponyfill.d.ts"
 import {
   create,
   CredentialCreationOptionsJSON,
@@ -6,7 +5,7 @@ import {
   get,
   parseCreationOptionsFromJSON,
   parseRequestOptionsFromJSON,
-} from "https://esm.sh/@github/webauthn-json@2.0.1/browser-ponyfill.js?target=deno";
+} from "@github/webauthn-json/browser-ponyfill";
 
 async function startAuthentication(): Promise<CredentialRequestOptions> {
   const response = await fetch("/api/authenticate", { method: "GET" });

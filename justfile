@@ -1,10 +1,8 @@
 # vim: ft=make
 
 build-ui:
-	deno task \
-		--config {{justfile_directory()}}/script/deno.jsonc \
-		--cwd {{justfile_directory()}}/script \
-		build
+	mkdir -p $out
+	cd script && yarn build
 	cp static/* $out/
 
 build:
