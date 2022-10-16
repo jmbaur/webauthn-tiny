@@ -7,10 +7,7 @@ import {
 
 async function authenticate() {
   const startResponse = await fetch("/api/authenticate", { method: "GET" });
-  if (!startResponse.ok) {
-    window.alert("failed to start authentication");
-    return;
-  }
+  if (!startResponse.ok) return window.alert("failed to start authentication");
   if (startResponse.status === 204) location.reload(); // no user credentials
   const endResponse = await fetch("/api/authenticate", {
     method: "POST",
@@ -34,15 +31,11 @@ document.addEventListener("DOMContentLoaded", function () {
         cred_id &&
         window.confirm("Do you really want to delete this credential?")
       ) {
-        try {
-          const response = await fetch(`/api/credentials/${cred_id}`, {
-            method: "DELETE",
-          });
-          if (response.status === 204) location.reload();
-        } catch (err) {
-          console.error(err);
-          window.alert(err);
-        }
+        const response = await fetch(`/api/credentials/${cred_id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) return window.alert("failed to delete credential");
+        if (response.status === 204) location.reload();
       }
     });
   }
@@ -55,13 +48,11 @@ document.addEventListener("DOMContentLoaded", function () {
       );
       if (newCredential === null) return;
       if (newCredential === "") {
-        window.alert("Name for new credential is empty");
-        return;
+        return window.alert("Name for new credential is empty");
       }
       const startResponse = await fetch("/api/register", { method: "GET" });
       if (!startResponse.ok) {
-        window.alert("failed to start credential registration");
-        return;
+        return window.alert("failed to start credential registration");
       }
       const endResponse = await fetch("/api/register", {
         method: "POST",
