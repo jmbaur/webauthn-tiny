@@ -1,35 +1,27 @@
 import {
   create,
-  CredentialCreationOptionsJSON,
-  CredentialRequestOptionsJSON,
   get,
   parseCreationOptionsFromJSON,
   parseRequestOptionsFromJSON,
 } from "@github/webauthn-json/browser-ponyfill";
 
-async function startAuthentication(): Promise<CredentialRequestOptions> {
-  const response = await fetch("/api/authenticate", { method: "GET" });
-  if (!response.ok) {
-    const msg = "failed to start authentication";
-    window.alert(msg);
-    throw new Error(msg);
+async function authenticate() {
+  const startResponse = await fetch("/api/authenticate", { method: "GET" });
+  if (!startResponse.ok) {
+    window.alert("failed to start authentication");
+    return;
   }
-  if (response.status === 204) location.reload(); // no user credentials
-  const challenge: CredentialRequestOptionsJSON = await response.json();
-  return parseRequestOptionsFromJSON(challenge);
-}
-
-async function endAuthentication(opts: CredentialRequestOptions) {
-  const data = await get(opts);
-  const body = JSON.stringify(data);
-
-  const response = await fetch("/api/authenticate", {
+  if (startResponse.status === 204) location.reload(); // no user credentials
+  const endResponse = await fetch("/api/authenticate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body,
+    body: JSON.stringify(
+      await get(
+        parseRequestOptionsFromJSON(await startResponse.json()),
+      ),
+    ),
   });
-
-  if (!response.ok) return window.alert("not authenticated");
+  if (!endResponse.ok) return window.alert("not authenticated");
   location.replace("/authenticate"); // client is now logged in
 }
 
@@ -66,28 +58,28 @@ document.addEventListener("DOMContentLoaded", function () {
         window.alert("Name for new credential is empty");
         return;
       }
-      try {
-        const response = await fetch("/api/register", { method: "GET" });
-        const startData: CredentialCreationOptionsJSON = await response.json();
-        const endData = await create(parseCreationOptionsFromJSON(startData));
-        const body = JSON.stringify({
-          name: newCredential,
-          credential: endData,
-        });
-        await fetch("/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-        location.reload();
-      } catch (err) {
-        console.error(err);
-        window.alert(err);
+      const startResponse = await fetch("/api/register", { method: "GET" });
+      if (!startResponse.ok) {
+        window.alert("failed to start credential registration");
+        return;
       }
+      const endResponse = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCredential,
+          credential: await create(
+            parseCreationOptionsFromJSON(await startResponse.json()),
+          ),
+        }),
+      });
+      if (!endResponse.ok) {
+        window.alert("failed to end credential registration");
+      } else location.reload();
     });
   }
 
   if (document.getElementById("authenticating-msg") !== null) {
-    startAuthentication().then(endAuthentication).catch(console.error);
+    authenticate().catch(console.error);
   }
 });
