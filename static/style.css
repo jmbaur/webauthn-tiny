@@ -1,15 +1,13 @@
 :root {
-  --color-bg: #222222;
-  --color-fg: #eeeeee;
+  --color-bg: #111111;
+  --color-fg: #ffffff;
 }
-
 @media (prefers-color-scheme: light) {
   :root {
-    --color-bg: #eeeeee;
-    --color-fg: #222222;
+    --color-bg: #ffffff;
+    --color-fg: #111111;
   }
 }
-
 body {
   background-color: var(--color-bg);
   color: var(--color-fg);
