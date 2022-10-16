@@ -1,5 +1,3 @@
-# vim: ft=make
-
 build-ui:
 	mkdir -p $out
 	cd script && yarn build
