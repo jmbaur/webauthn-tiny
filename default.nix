@@ -7,9 +7,9 @@ in
 rustPlatform.buildRustPackage {
   inherit pname version;
   src = ./.;
-  RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
-  ASSETS_DIRECTORY = toString ui-assets;
-  cargoLock.lockFile = ./Cargo.lock;
   buildInputs = [ sqlite openssl ];
   nativeBuildInputs = [ llvmPackages_latest.bintools pkg-config ];
+  ASSETS_DIRECTORY = toString ui-assets;
+  RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
+  cargoLock.lockFile = ./Cargo.lock;
 }

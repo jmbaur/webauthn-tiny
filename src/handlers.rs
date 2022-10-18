@@ -429,7 +429,7 @@ pub async fn get_authenticate_template_handler(
     let username = match headers.get("X-Remote-User") {
         Some(h) => {
             if let Ok(val) = h.to_str() {
-                String::from(val)
+                val.to_string()
             } else {
                 tracing::error!(
                     "could not convert X-Remote-User header value '{:#?}' to string",

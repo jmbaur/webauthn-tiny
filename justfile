@@ -3,5 +3,8 @@ build-ui:
 	cd script && yarn build
 	cp static/* $out/
 
-build:
+build: build-ui
 	cargo build
+
+run: build-ui
+	cargo run -- --rp-id localhost --rp-origin http://localhost:8080 --session-secret=$(openssl rand -hex 64)
