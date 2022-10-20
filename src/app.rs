@@ -1,4 +1,8 @@
-use axum::http::StatusCode;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use libsqlite3_sys::ErrorCode::ConstraintViolation;
 use rusqlite::Error::{QueryReturnedNoRows, SqliteFailure};
 use serde::{Deserialize, Serialize};
@@ -13,25 +17,35 @@ pub struct CredentialState {
     pub credentials: Vec<Passkey>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum AppError {
+    MissingUserInfo,
     UserNotFound,
     CredentialNotFound,
-    MismatchingCredentialID,
-    SqlError(rusqlite::Error),
-    SerdeError(serde_json::Error),
-    UuidError(uuid::Error),
+    MismatchingCredential,
+    DuplicateCredential,
+    BadInput,
+    EntityNotFound,
+    BadSession,
+    WebauthnFailed,
     UnknownError,
 }
 
 impl Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SqlError(e) => write!(f, "{e}"),
-            Self::SerdeError(e) => write!(f, "{e}"),
-            Self::UuidError(e) => write!(f, "{e}"),
-            _ => write!(f, "AppError"), // TODO(jared): better display impl
-        }
+        let msg = match self {
+            AppError::MissingUserInfo => "user info is missing",
+            AppError::BadInput => "bad input",
+            AppError::EntityNotFound => "could not find data",
+            AppError::BadSession => "session is invalid",
+            AppError::DuplicateCredential => "credential already exists",
+            AppError::MismatchingCredential => "incorrect credential used",
+            AppError::CredentialNotFound => "credential not found",
+            AppError::WebauthnFailed => "webauthn process failed",
+            AppError::UserNotFound => "user not found",
+            _ => "unknown error",
+        };
+        write!(f, "{msg}")
     }
 }
 
@@ -43,15 +57,28 @@ impl Default for AppError {
     }
 }
 
+#[derive(Serialize)]
+struct AppErrorResponse {
+    error: String,
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::from(self),
+            Json(AppErrorResponse {
+                error: self.to_string(),
+            }),
+        )
+            .into_response()
+    }
+}
+
 impl From<AppError> for StatusCode {
     fn from(error: AppError) -> Self {
         eprintln!("{:#?}", error);
         match error {
-            AppError::SqlError(QueryReturnedNoRows) => StatusCode::NOT_FOUND,
-            AppError::SqlError(SqliteFailure(err, _)) => match err.code {
-                ConstraintViolation => StatusCode::BAD_REQUEST,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
-            },
+            AppError::BadInput => StatusCode::BAD_REQUEST,
             AppError::UserNotFound => StatusCode::NOT_FOUND,
             AppError::CredentialNotFound => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -61,19 +88,26 @@ impl From<AppError> for StatusCode {
 
 impl From<rusqlite::Error> for AppError {
     fn from(error: rusqlite::Error) -> Self {
-        AppError::SqlError(error)
+        match error {
+            SqliteFailure(err, _) => match err.code {
+                ConstraintViolation => AppError::BadInput,
+                _ => AppError::UnknownError,
+            },
+            QueryReturnedNoRows => AppError::EntityNotFound,
+            _ => AppError::UnknownError,
+        }
     }
 }
 
 impl From<serde_json::Error> for AppError {
-    fn from(error: serde_json::Error) -> Self {
-        AppError::SerdeError(error)
+    fn from(_error: serde_json::Error) -> Self {
+        AppError::BadInput
     }
 }
 
 impl From<uuid::Error> for AppError {
-    fn from(error: uuid::Error) -> Self {
-        AppError::UuidError(error)
+    fn from(_error: uuid::Error) -> Self {
+        AppError::BadInput
     }
 }
 
@@ -239,7 +273,7 @@ impl App {
 
                 let mut credential = serde_json::from_str::<Passkey>(&cred_json)?;
                 if credential.update_credential(&auth_result).is_none() {
-                    return Err(AppError::MismatchingCredentialID);
+                    return Err(AppError::MismatchingCredential);
                 }
 
                 let cred_json = serde_json::to_string(&credential)?;
@@ -273,9 +307,8 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use tokio_rusqlite::Connection;
-
-    use super::App;
 
     async fn get_app_with_db() -> App {
         let db = Connection::open(":memory:").await.unwrap();
