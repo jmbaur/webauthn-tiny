@@ -270,3 +270,53 @@ impl App {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tokio_rusqlite::Connection;
+
+    use super::App;
+
+    async fn get_app_with_db() -> App {
+        let db = Connection::open(":memory:").await.unwrap();
+        let app = App::new(
+            db,
+            "example.com".to_string(),
+            "https://example.com".to_string(),
+        );
+        app.init().await.unwrap();
+        app
+    }
+
+    #[tokio::test]
+    async fn test_init_is_idempotent() {
+        let app = get_app_with_db().await;
+        app.init().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_user_with_credentials() {
+        let app = get_app_with_db().await;
+        app.db
+            .call(|conn| {
+                let exists: usize = conn
+                    .query_row("select exists(select id from users)", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(exists, 0);
+            })
+            .await;
+        let user = app
+            .get_user_with_credentials("foo_user".to_string())
+            .await
+            .unwrap(); // user is created if they do not exist
+        assert!(user.credentials.is_empty());
+        app.db
+            .call(|conn| {
+                let exists: usize = conn
+                    .query_row("select exists(select id from users)", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(exists, 1);
+            })
+            .await;
+    }
+}
