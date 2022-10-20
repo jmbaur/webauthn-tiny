@@ -7,11 +7,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.65"
-async-trait = "0.1.57"
+async-trait = "0.1.58"
 axum = "0.5.16"
 axum-macros = "0.2.3"
 axum-sessions = "0.3.1"
-clap = { version = "4.0.16", features = ["std", "derive", "env"] }
+clap = { version = "4.0.17", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.1"
 liquid = "0.26.0"
 metrics = "0.20.1"
@@ -19,9 +19,9 @@ metrics-exporter-prometheus = "0.11.0"
 mime_guess = "2.0.4"
 rand_core = "0.6.4"
 rusqlite = "0.28.0"
-rust-embed = { version = "6.4.1", features = ["interpolate-folder-path"] }
+rust-embed = { version = "6.4.2", features = ["interpolate-folder-path"] }
 serde = "1.0.145"
-serde_json = "1.0.86"
+serde_json = "1.0.87"
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
