@@ -14,7 +14,7 @@ use clap::Parser;
 use handlers::{
     authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
     get_authenticate_template_handler, get_credentials_template_handler, redirector,
-    register_end_handler, register_start_handler, require_logged_in, root_handler,
+    register_end_handler, register_start_handler, require_logged_in, root_handler, Templates,
 };
 use metrics::register_counter;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -77,23 +77,17 @@ async fn main() -> anyhow::Result<()> {
     let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;
 
-    let mut partials_source = liquid::partials::InMemorySource::new();
-
-    partials_source.add(
-        "top",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/templates/top.liquid")),
-    );
-    partials_source.add(
-        "bottom",
-        include_str!(concat!(
+    let parser = liquid::ParserBuilder::with_stdlib().build()?;
+    let templates = Templates {
+        credentials_template: parser.parse(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/templates/bottom.liquid"
-        )),
-    );
-    let partials = liquid::partials::EagerCompiler::new(partials_source);
-    let parser = liquid::ParserBuilder::with_stdlib()
-        .partials(partials)
-        .build()?;
+            "/templates/credentials.liquid"
+        )))?,
+        authenticate_template: parser.parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/authenticate.liquid"
+        )))?,
+    };
 
     let router = Router::new()
         .route(
@@ -136,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
                 .layer(session_layer)
                 .layer(Extension(Arc::new(RwLock::new(app))))
                 .layer(Extension(Arc::new(webauthn)))
-                .layer(Extension(Arc::new(parser)))
+                .layer(Extension(Arc::new(templates)))
                 .layer(Extension(Arc::new(prometheus_handle))),
         );
 

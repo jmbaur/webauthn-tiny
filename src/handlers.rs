@@ -11,6 +11,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
+use liquid::Template;
 use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -337,9 +338,10 @@ pub async fn root_handler(uri: Uri) -> Response {
     }
 }
 
-#[derive(RustEmbed)]
-#[folder = "templates"]
-pub struct Templates;
+pub struct Templates {
+    pub credentials_template: Template,
+    pub authenticate_template: Template,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CredentialIDWithName {
@@ -351,7 +353,7 @@ pub struct CredentialIDWithName {
 pub async fn get_credentials_template_handler(
     LoggedIn(logged_in): LoggedIn,
     session: ReadableSession,
-    parser: Extension<Arc<liquid::Parser>>,
+    templates: Extension<Arc<Templates>>,
     shared_state: Extension<SharedAppState>,
 ) -> Response {
     tracing::trace!("get_credentials_template_handler");
@@ -367,48 +369,35 @@ pub async fn get_credentials_template_handler(
         None => return AppError::BadSession.into_response(),
     };
 
-    if let Some(template) = Templates::get("credentials.liquid") {
-        let parsed_template =
-            match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
-                Ok(t) => t,
+    return match app.get_user_with_credentials(username).await {
+        Ok(user) => {
+            let credentials: Vec<CredentialIDWithName> = user
+                .credentials
+                .iter()
+                .map(|c| {
+                    let c = c.clone();
+                    CredentialIDWithName {
+                        id: c.credential.cred_id().to_string(),
+                        name: c.name,
+                    }
+                })
+                .collect();
+
+            let tmpl_data = liquid::object!({ "credentials": credentials });
+
+            return match templates.credentials_template.render(&tmpl_data) {
+                Ok(html) => Html(finish_html(html)).into_response(),
                 Err(e) => {
-                    tracing::error!("parser.parse: {e}");
-                    return AppError::UnknownError.into_response();
+                    tracing::error!("templates.credentials_template.render: {e}");
+                    AppError::UnknownError.into_response()
                 }
             };
-
-        return match app.get_user_with_credentials(username).await {
-            Ok(user) => {
-                let credentials: Vec<CredentialIDWithName> = user
-                    .credentials
-                    .iter()
-                    .map(|c| {
-                        let c = c.clone();
-                        CredentialIDWithName {
-                            id: c.credential.cred_id().to_string(),
-                            name: c.name,
-                        }
-                    })
-                    .collect();
-
-                let tmpl_data = liquid::object!({ "credentials": credentials });
-
-                return match parsed_template.render(&tmpl_data) {
-                    Ok(html) => Html(html).into_response(),
-                    Err(e) => {
-                        tracing::error!("parsed_template.render: {e}");
-                        AppError::UnknownError.into_response()
-                    }
-                };
-            }
-            Err(e) => {
-                tracing::error!("app.get_user_with_credentials: {e}");
-                e.into_response()
-            }
-        };
-    } else {
-        AppError::UnknownError.into_response()
-    }
+        }
+        Err(e) => {
+            tracing::error!("app.get_user_with_credentials: {e}");
+            e.into_response()
+        }
+    };
 }
 
 #[derive(Deserialize)]
@@ -422,7 +411,7 @@ pub async fn get_authenticate_template_handler(
     params: Query<GetAuthenticateQueryParams>,
     headers: HeaderMap,
     mut session: WritableSession,
-    parser: Extension<Arc<liquid::Parser>>,
+    templates: Extension<Arc<Templates>>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Html<String>, AppError> {
     tracing::trace!("get_authenticate_template_handler");
@@ -446,41 +435,64 @@ pub async fn get_authenticate_template_handler(
         return Err(AppError::BadSession);
     }
 
-    if let Some(template) = Templates::get("authenticate.liquid") {
-        let parsed_template =
-            match parser.parse(std::str::from_utf8(&template.data).unwrap_or_default()) {
-                Ok(t) => t,
-                Err(e) => {
-                    tracing::error!("parser.parse: {e}");
-                    return Err(AppError::UnknownError);
-                }
-            };
-        let tmpl_data = liquid::object!({
-            "username": username,
-            "logged_in": logged_in,
-        });
-        if let Some(redirect_url) = &params.redirect_url {
-            if let Ok(accepted_redirect_url) =
-                get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
-            {
-                if !logged_in {
-                    if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url) {
-                        tracing::error!("session.insert: {e}");
-                        return Err(AppError::BadSession);
-                    }
+    let tmpl_data = liquid::object!({
+        "username": username,
+        "logged_in": logged_in,
+    });
+    if let Some(redirect_url) = &params.redirect_url {
+        if let Ok(accepted_redirect_url) =
+            get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
+        {
+            if !logged_in {
+                if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url) {
+                    tracing::error!("session.insert: {e}");
+                    return Err(AppError::BadSession);
                 }
             }
         }
-        match parsed_template.render(&tmpl_data) {
-            Ok(html) => Ok(Html(html)),
-            Err(e) => {
-                tracing::error!("parsed_template.render: {e}");
-                Err(AppError::UnknownError)
-            }
-        }
-    } else {
-        Err(AppError::UnknownError)
     }
+    match templates.authenticate_template.render(&tmpl_data) {
+        Ok(html) => Ok(Html(finish_html(html))),
+        Err(e) => {
+            tracing::error!("parsed_template.render: {e}");
+            Err(AppError::UnknownError)
+        }
+    }
+}
+
+const TOP_HTML: &str = r#"
+<!DOCTYPE html>
+<head>
+  <style>
+    :root {
+    	--color-bg: #222222;
+    	--color-fg: #eeeeee;
+    }
+    @media (prefers-color-scheme: light) {
+    	:root {
+    		--color-bg: #eeeeee;
+    		--color-fg: #222222;
+    	}
+    }
+    body {
+    	background-color: var(--color-bg);
+    	color: var(--color-fg);
+    }
+  </style>
+  <title>WebAuthnTiny</title>
+</head>
+<html>
+<body>
+"#;
+
+const BOTTOM_HTML: &str = r#"
+<script src="/main.js"></script>
+</body>
+</html>
+"#;
+
+fn finish_html(page_html: String) -> String {
+    format!("{}{}{}", TOP_HTML, page_html, BOTTOM_HTML)
 }
 
 fn get_redirect_url(requested_url: String, allowed_origins: &[Url]) -> anyhow::Result<String> {

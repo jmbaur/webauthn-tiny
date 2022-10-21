@@ -1,5 +1,3 @@
-{% comment %} TODO(jared): Use `render` when this is merged https://github.com/cobalt-org/liquid-rust/pull/472 {% endcomment %}
-{% include "top" %}
 {% if logged_in %}
 	<div id="logged-in-msg">
 		User {{ username }} already logged in
@@ -9,5 +7,3 @@
 		Authenticating for {{ username }}
 	</div>
 {% endif %}
-{% comment %} TODO(jared): Use `render` when this is merged https://github.com/cobalt-org/liquid-rust/pull/472 {% endcomment %}
-{% include "bottom" %}
