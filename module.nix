@@ -141,14 +141,14 @@ in
         ProtectSystem = true;
         ProtectHome = true;
         DynamicUser = true;
-        ExecStart = "${pkgs.webauthn-tiny}/bin/webauthn-tiny " +
-          lib.escapeShellArgs ([
-            "--rp-id=${cfg.relyingParty.id}"
-            "--rp-origin=${cfg.relyingParty.origin}"
-          ] ++ (map
-            (origin: "--extra-allowed-origins=${origin}")
-            cfg.relyingParty.extraAllowedOrigins)
-          );
+        ExecStart = lib.escapeShellArgs ([
+          "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
+          "--rp-id=${cfg.relyingParty.id}"
+          "--rp-origin=${cfg.relyingParty.origin}"
+        ] ++ (map
+          (origin: "--extra-allowed-origins=${origin}")
+          cfg.relyingParty.extraAllowedOrigins)
+        );
       };
       wantedBy = [ "multi-user.target" ];
     };
