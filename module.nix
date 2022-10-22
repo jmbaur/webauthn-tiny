@@ -136,11 +136,8 @@ in
       description = "webauthn-tiny (https://github.com/jmbaur/webauthn-tiny)";
       environment.WEBAUTHN_TINY_LOG = "info";
       serviceConfig = {
-        EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
         StateDirectory = "webauthn-tiny";
-        ProtectSystem = true;
-        ProtectHome = true;
-        DynamicUser = true;
+        EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
         ExecStart = lib.escapeShellArgs ([
           "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
           "--rp-id=${cfg.relyingParty.id}"
@@ -149,6 +146,29 @@ in
           (origin: "--extra-allowed-origins=${origin}")
           cfg.relyingParty.extraAllowedOrigins)
         );
+
+        CapabilityBoundingSet = [ ];
+        DeviceAllow = [ ];
+        DynamicUser = true;
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        NoNewPrivileges = true;
+        PrivateDevices = true;
+        ProtectClock = true;
+        ProtectControlGroups = true;
+        ProtectHome = true;
+        ProtectHome = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        ProtectSystem = "strict";
+        RemoveIPC = true;
+        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        SystemCallArchitectures = "native";
       };
       wantedBy = [ "multi-user.target" ];
     };
