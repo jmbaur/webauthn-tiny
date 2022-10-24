@@ -28,7 +28,11 @@ tower-http = { version = "0.3.4", features = ["trace"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 uuid = "1.2.1"
+webauthn-authenticator-rs = "0.4.7"
 webauthn-rs = { version = "0.4.7", features = [
   "danger-allow-state-serialisation",
+  "danger-credential-internals",
+  "resident-key-support",
 ] }
+webauthn-rs-core = "0.4.7"
 webauthn-rs-proto = "0.4.7"

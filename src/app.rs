@@ -309,6 +309,12 @@ impl App {
 mod tests {
     use super::*;
     use tokio_rusqlite::Connection;
+    use webauthn_authenticator_rs::{prelude::Url, softtoken::SoftToken, WebauthnAuthenticator};
+    use webauthn_rs::prelude::{AttestationCa, AttestationCaList};
+    use webauthn_rs_core::WebauthnCore;
+    use webauthn_rs_proto::{
+        AttestationConveyancePreference, COSEAlgorithm, UserVerificationPolicy,
+    };
 
     async fn get_app_with_db() -> App {
         let db = Connection::open(":memory:").await.unwrap();
@@ -338,11 +344,9 @@ mod tests {
                 assert_eq!(exists, 0);
             })
             .await;
-        let user = app
-            .get_user_with_credentials("foo_user".to_string())
+        app.get_user_with_credentials("foo_user".to_string())
             .await
             .unwrap(); // user is created if they do not exist
-        assert!(user.credentials.is_empty());
         app.db
             .call(|conn| {
                 let exists: usize = conn
@@ -351,5 +355,84 @@ mod tests {
                 assert_eq!(exists, 1);
             })
             .await;
+    }
+
+    #[tokio::test]
+    async fn test_credential_lifecycle() {
+        let (soft_token, ca_root) = SoftToken::new().unwrap();
+
+        let wan = WebauthnCore::new_unsafe_experts_only(
+            "https://localhost:8080/auth",
+            "localhost",
+            vec![Url::parse("https://localhost:8080").unwrap()],
+            None,
+            None,
+            None,
+        );
+        let mut wa = WebauthnAuthenticator::new(soft_token);
+
+        let app = get_app_with_db().await;
+        let user = app
+            .get_user_with_credentials("bar_user".to_string())
+            .await
+            .unwrap();
+
+        assert!(user.credentials.is_empty());
+
+        let (chal, reg_state) = wan
+            .generate_challenge_register_options(
+                &user.id.into_bytes(),
+                &user.username,
+                &user.username,
+                AttestationConveyancePreference::Direct,
+                Some(UserVerificationPolicy::Preferred),
+                None,
+                None,
+                COSEAlgorithm::secure_algs(),
+                false,
+                None,
+                false,
+            )
+            .unwrap();
+
+        let r = wa
+            .do_registration(Url::parse("https://localhost:8080").unwrap(), chal)
+            .unwrap();
+
+        let cred = wan
+            .register_credential(
+                &r,
+                &reg_state,
+                Some(&AttestationCaList {
+                    cas: vec![AttestationCa { ca: ca_root }],
+                }),
+            )
+            .unwrap();
+
+        app.add_credential(
+            user.username,
+            "bar_credential".to_string(),
+            Passkey::from(cred.clone()),
+        )
+        .await
+        .unwrap();
+
+        let user = app
+            .get_user_with_credentials("bar_user".to_string())
+            .await
+            .unwrap();
+        assert!(user.credentials.len() == 1);
+
+        // app.update_credential(); // TODO(jared): test this
+
+        app.delete_credential(cred.cred_id.to_string())
+            .await
+            .unwrap();
+
+        let user = app
+            .get_user_with_credentials("bar_user".to_string())
+            .await
+            .unwrap();
+        assert!(user.credentials.is_empty());
     }
 }
