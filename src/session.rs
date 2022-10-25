@@ -81,3 +81,46 @@ impl SessionStore for SqliteSessionStore {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_session_lifecycle() {
+        let db = Connection::open(":memory:").await.unwrap();
+        let store = SqliteSessionStore::new(db);
+        store.init().await.unwrap();
+
+        let session = Session::new();
+        let stored = store.store_session(session).await.unwrap().unwrap();
+        let loaded = store.load_session(stored).await.unwrap().unwrap();
+        store.destroy_session(loaded).await.unwrap();
+        store
+            .db
+            .call(|conn| {
+                let exists: usize = conn
+                    .query_row("select exists(select id from sessions)", [], |row| {
+                        row.get(0)
+                    })
+                    .unwrap();
+                assert_eq!(exists, 0);
+            })
+            .await;
+
+        let session = Session::new();
+        store.store_session(session).await.unwrap().unwrap();
+        store.clear_store().await.unwrap();
+        store
+            .db
+            .call(|conn| {
+                let exists: usize = conn
+                    .query_row("select exists(select id from sessions)", [], |row| {
+                        row.get(0)
+                    })
+                    .unwrap();
+                assert_eq!(exists, 0);
+            })
+            .await;
+    }
+}

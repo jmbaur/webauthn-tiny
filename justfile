@@ -8,3 +8,6 @@ build-ui:
 
 run: build-ui
 	cargo run -- --rp-id localhost --rp-origin http://localhost:8080 --session-secret=$(openssl rand -hex 64)
+
+test: build
+	cargo test
