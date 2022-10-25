@@ -1,3 +1,5 @@
+#![warn(unused_crate_dependencies)]
+
 mod app;
 mod handlers;
 mod session;
