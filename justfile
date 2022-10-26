@@ -2,8 +2,14 @@ build: build-ui
 	cargo build
 
 build-ui:
+	#!/usr/bin/env bash
 	mkdir -p $out
-	cd script && yarn build
+	pushd script || exit
+	if [[ ! -d node_modules ]]; then
+		yarn install
+	fi
+	yarn build
+	popd || exit
 	cp static/* $out/
 
 check: build
