@@ -15,7 +15,7 @@ jobs:
           extra_nix_config: |
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
       - name: Update cargo crates
-        run: nix develop --command cargo update
+        run: nix develop --command sh -c "cargo update"
       - name: Create pull request
         uses: peter-evans/create-pull-request@v4
   lockfile:
