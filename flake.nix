@@ -41,7 +41,7 @@
       devShells.default = pkgs.mkShell {
         inherit (preCommitHooks) shellHook;
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
-        buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++
+        buildInputs = with pkgs; [ just clippy yarn nodejs esbuild ] ++
           pkgs.webauthn-tiny.buildInputs;
       };
     });
