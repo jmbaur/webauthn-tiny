@@ -15,7 +15,7 @@ build-ui:
 	cd ..
 	cp static/* $out/
 
-check:
+check: build-ui
 	cargo check
 	cargo test
 
