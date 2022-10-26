@@ -1,15 +1,18 @@
+export WEBAUTHN_TINY_LOG := "debug"
+export ASSETS_DIRECTORY := env_var("out")
+
 build: build-ui
 	cargo build
 
 build-ui:
 	#!/usr/bin/env bash
 	mkdir -p $out
-	pushd script || exit
+	cd script
 	if [[ ! -d node_modules ]]; then
 		yarn install
 	fi
 	yarn build
-	popd || exit
+	cd ..
 	cp static/* $out/
 
 check: build

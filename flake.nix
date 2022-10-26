@@ -43,7 +43,6 @@
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
         buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++
           pkgs.webauthn-tiny.buildInputs;
-        WEBAUTHN_TINY_LOG = "debug";
       };
     });
 }
