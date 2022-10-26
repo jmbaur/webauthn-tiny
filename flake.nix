@@ -28,8 +28,8 @@
       preCommitHooks = pre-commit.lib.${system}.run {
         src = ./.;
         hooks = {
-          cargo-check.enable = true;
           clippy.enable = true;
+          deadnix.enable = true;
           nixpkgs-fmt.enable = true;
           rustfmt.enable = true;
         };

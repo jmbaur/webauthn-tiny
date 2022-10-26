@@ -1,4 +1,3 @@
-export WEBAUTHN_TINY_LOG := "debug"
 export ASSETS_DIRECTORY := env_var("out")
 
 build: build-ui
@@ -8,9 +7,7 @@ build-ui:
 	#!/usr/bin/env bash
 	mkdir -p $out
 	cd script
-	if [[ ! -d node_modules ]]; then
-		yarn install
-	fi
+	[[ ! -d node_modules ]] && yarn install
 	yarn build
 	cd ..
 	cp static/* $out/
@@ -20,4 +17,8 @@ check: build-ui
 	cargo test
 
 run: build-ui
-	cargo run -- --rp-id localhost --rp-origin http://localhost:8080 --session-secret=$(openssl rand -hex 64)
+	#!/usr/bin/env bash
+	export WEBAUTHN_TINY_LOG="debug"
+	state_directory="{{justfile_directory()}}/state"
+	mkdir -p $state_directory
+	cargo run -- --rp-id=localhost --rp-origin=http://localhost:8080 --session-secret=$(openssl rand -hex 64) --state-directory=$state_directory

@@ -1,6 +1,7 @@
-.direnv
-.pre-commit-config.yaml
-node_modules
-outputs
-result*
-target
+/.direnv
+/.pre-commit-config.yaml
+/outputs
+/result*
+/script/node_modules
+/state
+/target

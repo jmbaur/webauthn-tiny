@@ -39,6 +39,8 @@ struct Cli {
     extra_allowed_origins: Vec<String>,
     #[clap(env, long, value_parser, help = "Session secret")]
     session_secret: String,
+    #[clap(env, long, value_parser, help = "Directory to store program state")]
+    state_directory: PathBuf,
 }
 
 #[tokio::main]
@@ -64,8 +66,7 @@ async fn main() -> anyhow::Result<()> {
     }
     let webauthn = builder.build()?;
 
-    let state_dir = env::var("STATE_DIRECTORY")?;
-    let mut db_path = PathBuf::from(state_dir);
+    let mut db_path = cli.state_directory;
     db_path.push("webauthn-tiny.db");
     let db = Connection::open(db_path).await?;
 
