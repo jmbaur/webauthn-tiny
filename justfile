@@ -16,7 +16,7 @@ build-ui:
 	cp static/* $out/
 
 check:
-	cargo clippy
+	cargo check
 	cargo test
 
 run: build-ui
