@@ -9,8 +9,6 @@ server with a reverse proxy that is protected by username and password. The
 reverse proxy can then set the required `X-Remote-User` header before proxying a
 request.
 
-## Usage
-
 ```console
 Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret <SESSION_SECRET>
 
