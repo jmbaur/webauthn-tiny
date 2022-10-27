@@ -22,14 +22,15 @@ update: update_usage
 build: build-ui
 	cargo build
 
-build-ui:
-	#!/usr/bin/env bash
-	mkdir -p $out
-	cd script
-	[[ ! -d node_modules ]] && yarn install
-	yarn build
-	cd ..
-	cp static/* $out/
+build-ui out=env_var("out"):
+	#!/bin/sh
+	esbuild main.ts \
+		--bundle \
+		--minify \
+		--sourcemap \
+		--target=chrome58,firefox57,safari11,edge18 \
+		--outdir={{out}}
+	cp favicon.ico {{out}}/
 
 check: build-ui
 	cargo check

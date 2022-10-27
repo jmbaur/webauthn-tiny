@@ -1,4 +1,4 @@
-{ rustPlatform, llvmPackages_latest, pkg-config, openssl, sqlite, lib, ui-assets, ... }:
+{ rustPlatform, llvmPackages_latest, pkg-config, openssl, sqlite, lib, ui, ... }:
 let
   cargoToml = lib.importTOML ./Cargo.toml;
   pname = cargoToml.package.name;
@@ -9,7 +9,7 @@ rustPlatform.buildRustPackage {
   src = ./.;
   buildInputs = [ sqlite openssl ];
   nativeBuildInputs = [ llvmPackages_latest.bintools pkg-config ];
-  ASSETS_DIRECTORY = toString ui-assets;
+  ASSETS_DIRECTORY = builtins.toPath ui;
   RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
   cargoLock.lockFile = ./Cargo.lock;
 }

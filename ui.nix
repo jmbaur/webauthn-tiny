@@ -1,7 +1,7 @@
-{ mkYarnPackage, esbuild, ... }:
+{ mkYarnPackage, just, esbuild, ... }:
 mkYarnPackage {
   src = ./.;
-  extraBuildInputs = [ esbuild ];
+  extraBuildInputs = [ just esbuild ];
   buildPhase = "yarn build";
   installPhase = "true";
   doDist = false;

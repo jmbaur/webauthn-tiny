@@ -15,10 +15,7 @@
     {
       overlays.default = _: prev: {
         webauthn-tiny = prev.callPackage ./. {
-          ui-assets = prev.symlinkJoin {
-            name = "webauthn-tiny-ui";
-            paths = [ ./static (prev.buildPackages.callPackage ./script { }) ];
-          };
+          ui = prev.buildPackages.callPackage ./ui.nix { };
         };
       };
       nixosModules.default = {
