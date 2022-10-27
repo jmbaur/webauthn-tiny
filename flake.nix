@@ -38,11 +38,12 @@
     {
       packages.nixos-test = pkgs.callPackage ./test.nix { inherit inputs; };
       packages.default = pkgs.webauthn-tiny;
-      devShells.default = pkgs.mkShell {
+      devShells.default = self.devShells.${system}.ci.overrideAttrs (_: {
         inherit (preCommitHooks) shellHook;
+      });
+      devShells.ci = pkgs.mkShell {
         inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
-        buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++
-          pkgs.webauthn-tiny.buildInputs;
+        buildInputs = with pkgs; [ just yarn nodejs esbuild ] ++ pkgs.webauthn-tiny.buildInputs;
       };
     });
 }

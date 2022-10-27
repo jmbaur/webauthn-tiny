@@ -16,4 +16,4 @@ jobs:
         with:
           extra_nix_config: |
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-      - run: nix develop --command sh -c "just check"
+      - run: nix develop .\#ci --command sh -c "just check"
