@@ -7,7 +7,8 @@
     "build": "esbuild main.ts --bundle --minify --sourcemap --target=chrome58,firefox57,safari11,edge18 --outfile=$out/main.js"
   },
   "dependencies": {
-    "@github/webauthn-json": "^2.0.1"
+    "@github/webauthn-json": "^2.0.1",
+    "simpledotcss": "^2.1.1"
   },
   "devDependencies": {
     "typescript": "^4.8.4"

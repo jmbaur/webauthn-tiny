@@ -463,22 +463,7 @@ pub async fn get_authenticate_template_handler(
 const TOP_HTML: &str = r#"
 <!DOCTYPE html>
 <head>
-  <style>
-    :root {
-    	--color-bg: #222222;
-    	--color-fg: #eeeeee;
-    }
-    @media (prefers-color-scheme: light) {
-    	:root {
-    		--color-bg: #eeeeee;
-    		--color-fg: #222222;
-    	}
-    }
-    body {
-    	background-color: var(--color-bg);
-    	color: var(--color-fg);
-    }
-  </style>
+  <link rel="stylesheet" href="/main.css">
   <title>WebAuthnTiny</title>
 </head>
 <html>
