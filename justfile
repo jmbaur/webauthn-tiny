@@ -1,5 +1,13 @@
 export ASSETS_DIRECTORY := env_var("out")
 
+help:
+	@just --list
+
+update:
+	cargo update
+	cargo upgrade
+	pushd script && yarn upgrade && popd
+
 build: build-ui
 	cargo build
 
