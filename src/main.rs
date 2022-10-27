@@ -29,17 +29,29 @@ use webauthn_rs::{prelude::Url, WebauthnBuilder};
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)] // Read from `Cargo.toml`
 struct Cli {
-    #[clap(env, long, value_parser, help= "Address to bind on", default_value_t = ("[::]:8080").parse().expect("invalid address"))]
+    #[clap(
+        env,
+        long,
+        value_parser,
+        help = "Address to bind on",
+        default_value = "[::]:8080"
+    )]
     address: SocketAddr,
     #[clap(env, long, value_parser, help = "Relying Party ID")]
     rp_id: String,
     #[clap(env, long, value_parser, help = "Relying Party origin")]
     rp_origin: String,
-    #[clap(env, long, value_parser, help = "Extra allowed origins")]
-    extra_allowed_origins: Vec<String>,
+    #[clap(env, long, value_parser, help = "Extra allowed origin")]
+    extra_allowed_origin: Vec<String>,
     #[clap(env, long, value_parser, help = "Session secret")]
     session_secret: String,
-    #[clap(env, long, value_parser, help = "Directory to store program state")]
+    #[clap(
+        env,
+        long,
+        value_parser,
+        help = "Directory to store program state",
+        default_value = "/var/lib/webauthn-tiny"
+    )]
     state_directory: PathBuf,
 }
 
@@ -61,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.rp_origin)?;
     let mut builder = WebauthnBuilder::new(&cli.rp_id, &origin_url)?.allow_subdomains(true);
-    for url in cli.extra_allowed_origins {
+    for url in cli.extra_allowed_origin {
         builder = builder.append_allowed_origin(&Url::parse(&url)?);
     }
     let webauthn = builder.build()?;

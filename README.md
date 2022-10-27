@@ -11,17 +11,26 @@ request.
 
 ## Usage
 
-```bash
-webauthn-tiny --rp-id <RP ID> --rp-origin <RP Origin> --session-secret <64-byte value>
-```
+```console
+Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret <SESSION_SECRET>
 
-Flags can be replaced for their corresponding environment variables (e.g.
-`--rp-id` can instead be the environment variable `RP_ID`).
-
-Example:
-
-```bash
-webauthn-tiny --rp-id mywebsite.com --rp-origin https://auth.mywebsite.com --session-secret=$(openssl rand -hex 64)
+Options:
+      --address <ADDRESS>
+          Address to bind on [env: ADDRESS=] [default: [::]:8080]
+      --rp-id <RP_ID>
+          Relying Party ID [env: RP_ID=]
+      --rp-origin <RP_ORIGIN>
+          Relying Party origin [env: RP_ORIGIN=]
+      --extra-allowed-origin <EXTRA_ALLOWED_ORIGIN>
+          Extra allowed origin [env: EXTRA_ALLOWED_ORIGIN=]
+      --session-secret <SESSION_SECRET>
+          Session secret [env: SESSION_SECRET=]
+      --state-directory <STATE_DIRECTORY>
+          Directory to store program state [env: STATE_DIRECTORY=] [default: /var/lib/webauthn-tiny]
+  -h, --help
+          Print help information
+  -V, --version
+          Print version information
 ```
 
 ## Reverse Proxy Setup

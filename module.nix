@@ -143,7 +143,7 @@ in
           "--rp-id=${cfg.relyingParty.id}"
           "--rp-origin=${cfg.relyingParty.origin}"
         ] ++ (map
-          (origin: "--extra-allowed-origins=${origin}")
+          (origin: "--extra-allowed-origin=${origin}")
           cfg.relyingParty.extraAllowedOrigins)
         );
 
