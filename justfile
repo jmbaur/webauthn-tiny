@@ -17,7 +17,10 @@ update_usage:
 update: update_usage
 	cargo update
 	cargo upgrade
-	pushd script && yarn upgrade && popd
+	yarn upgrade
+
+setup:
+	yarn install
 
 build: build-ui
 	cargo build
@@ -35,6 +38,8 @@ build-ui out=env_var("out"):
 check: build-ui
 	cargo check
 	cargo test
+
+ci: setup check
 
 run: build-ui
 	#!/usr/bin/env bash

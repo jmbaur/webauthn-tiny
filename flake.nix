@@ -14,9 +14,7 @@
     in
     {
       overlays.default = _: prev: {
-        webauthn-tiny = prev.callPackage ./. {
-          ui = prev.buildPackages.callPackage ./ui.nix { };
-        };
+        webauthn-tiny = prev.callPackage ./. { ui = prev.buildPackages.callPackage ./ui.nix { }; };
       };
       nixosModules.default = {
         nixpkgs.overlays = [ self.overlays.default ];
