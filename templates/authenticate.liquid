@@ -1,9 +1,13 @@
-{% if logged_in %}
-	<div id="logged-in-msg">
-		User {{ username }} already logged in
-	</div>
-{% else %}
-	<div id="authenticating-msg">
-		Authenticating for {{ username }}
-	</div>
-{% endif %}
+<main>
+	<center>
+		{% if logged_in %}
+			<div id="logged-in-msg">
+				User {{ username }} already logged in
+			</div>
+		{% else %}
+			<div id="authenticating-msg">
+				Authenticating for {{ username }}
+			</div>
+		{% endif %}
+	</center>
+</main>
