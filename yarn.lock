@@ -9,11 +9,6 @@
   dependencies:
     rome "^0.9.2-next"
 
-"@picocss/pico@^1.5.6":
-  version "1.5.6"
-  resolved "https://registry.yarnpkg.com/@picocss/pico/-/pico-1.5.6.tgz#82a2253e8dc12657f1a7de4e68c01cdc74f798b7"
-  integrity sha512-9R+OdtMuHijKa7AQKBrng/1Q/Cd3BnEigYJXmOxI10Eka2qGGDa4b0hua8UeYu01BTtAiO70K7CQuHffU4YXGA==
-
 "@rometools/cli-darwin-arm64@0.9.2-next":
   version "0.9.2-next"
   resolved "https://registry.yarnpkg.com/@rometools/cli-darwin-arm64/-/cli-darwin-arm64-0.9.2-next.tgz#87c7903fa34aca2511b1bf091646b9008e51a9d7"
