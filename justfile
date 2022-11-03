@@ -3,18 +3,18 @@ export ASSETS_DIRECTORY := env_var("out")
 help:
 	@just --list
 
-update_usage:
+update-usage:
 	#!/usr/bin/env bash
 	readarray -t lines <<<"$(grep -n '```' README.md | cut -d':' -f1)"
-	new_usage=$(mktemp)
-	echo '```console' >>$new_usage
-	cargo run -- --help 2>/dev/null >>$new_usage
-	echo '```' >>$new_usage
-	new_first_line="$(("${lines[0]}" - 1))"
-	cat README.md | sed "${lines[0]},${lines[1]} d" | sed "$new_first_line r $new_usage" | tee README.md
-	rm $new_usage
+	tmpfile=$(mktemp)
+	echo '```console' >>$tmpfile
+	cargo run -- --help 2>/dev/null >>$tmpfile
+	echo '```' >>$tmpfile
+	sed -i "${lines[0]},${lines[1]} d" README.md
+	sed -i "$(("${lines[0]}" - 1)) r $tmpfile" README.md
+	rm $tmpfile
 
-update: update_usage
+update: update-usage
 	cargo update
 	cargo upgrade
 	yarn upgrade
