@@ -1,4 +1,3 @@
-import "simpledotcss";
 import {
   create,
   get,

@@ -4,11 +4,10 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "just build-ui"
+    "build": "esbuild main.ts --bundle --minify --sourcemap --target=chrome58,firefox57,safari11,edge18 --outdir=$out"
   },
   "dependencies": {
-    "@github/webauthn-json": "^2.0.1",
-    "simpledotcss": "^2.1.1"
+    "@github/webauthn-json": "^2.0.1"
   },
   "devDependencies": {
     "typescript": "^4.8.4"
