@@ -2,7 +2,7 @@
 mkYarnPackage {
   src = ./.;
   extraBuildInputs = [ just esbuild ];
-  buildPhase = "yarn build";
+  buildPhase = "yarn build -- --outdir=$out";
   installPhase = "true";
   doDist = false;
 }
