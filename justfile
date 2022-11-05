@@ -1,3 +1,5 @@
+# vim: ft=make
+
 export ASSETS_DIRECTORY := env_var("out")
 
 help:
