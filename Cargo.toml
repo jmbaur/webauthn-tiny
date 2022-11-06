@@ -11,7 +11,7 @@ async-trait = "0.1.58"
 axum = "0.5.17"
 axum-macros = "0.2.3"
 axum-sessions = "0.3.1"
-clap = { version = "4.0.18", features = ["std", "derive", "env"] }
+clap = { version = "4.0.19", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
 liquid = "0.26.0"
 metrics = "0.20.1"
