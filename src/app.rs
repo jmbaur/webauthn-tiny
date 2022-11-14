@@ -310,11 +310,7 @@ mod tests {
     use super::*;
     use tokio_rusqlite::Connection;
     use webauthn_authenticator_rs::{prelude::Url, softtoken::SoftToken, WebauthnAuthenticator};
-    use webauthn_rs::prelude::{AttestationCa, AttestationCaList};
     use webauthn_rs_core::WebauthnCore;
-    use webauthn_rs_proto::{
-        AttestationConveyancePreference, COSEAlgorithm, UserVerificationPolicy,
-    };
 
     async fn get_app_with_db() -> App {
         let db = Connection::open(":memory:").await.unwrap();
@@ -359,7 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_credential_lifecycle() {
-        let (soft_token, ca_root) = SoftToken::new().unwrap();
+        let (soft_token, _) = SoftToken::new().unwrap();
 
         let wan = WebauthnCore::new_unsafe_experts_only(
             "https://localhost:8080/auth",
@@ -380,17 +376,10 @@ mod tests {
         assert!(user.credentials.is_empty());
 
         let (chal, reg_state) = wan
-            .generate_challenge_register_options(
+            .generate_challenge_register(
                 &user.id.into_bytes(),
                 &user.username,
                 &user.username,
-                AttestationConveyancePreference::Direct,
-                Some(UserVerificationPolicy::Preferred),
-                None,
-                None,
-                COSEAlgorithm::secure_algs(),
-                false,
-                None,
                 false,
             )
             .unwrap();
@@ -399,15 +388,7 @@ mod tests {
             .do_registration(Url::parse("https://localhost:8080").unwrap(), chal)
             .unwrap();
 
-        let cred = wan
-            .register_credential(
-                &r,
-                &reg_state,
-                Some(&AttestationCaList {
-                    cas: vec![AttestationCa { ca: ca_root }],
-                }),
-            )
-            .unwrap();
+        let cred = wan.register_credential(&r, &reg_state, None).unwrap();
 
         app.add_credential(
             user.username,
