@@ -41,4 +41,8 @@ run: build-ui
 	export WEBAUTHN_TINY_LOG="debug"
 	state_directory="{{justfile_directory()}}/state"
 	mkdir -p $state_directory
-	cargo run -- --rp-id=localhost --rp-origin=http://localhost:8080 --session-secret=$(openssl rand -hex 64) --state-directory=$state_directory
+	cargo run -- \
+		--rp-id=localhost \
+		--rp-origin=http://localhost:8080 \
+		--session-secret=$(openssl rand -hex 64) \
+		--state-directory=$state_directory

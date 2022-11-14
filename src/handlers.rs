@@ -15,7 +15,7 @@ use liquid::Template;
 use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
@@ -35,15 +35,16 @@ impl<B> FromRequest<B> for LoggedIn
 where
     B: Send,
 {
-    type Rejection = StatusCode;
+    type Rejection = Infallible;
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
         if let Ok(session) = ReadableSession::from_request(req).await {
-            if session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default() {
-                return Ok(LoggedIn(true));
-            }
+            Ok(LoggedIn(
+                session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
+            ))
+        } else {
+            Ok(LoggedIn(false))
         }
-        Ok(LoggedIn(false))
     }
 }
 
@@ -52,18 +53,17 @@ where
     B: Send,
 {
     let mut request_parts = RequestParts::new(req);
-    match LoggedIn::from_request(&mut request_parts).await {
-        Ok(LoggedIn(logged_in)) => {
-            if logged_in {
-                let req = request_parts.try_into_request().expect("body extracted");
-                increment_counter!("authorized_requests");
-                Ok(next.run(req).await)
-            } else {
-                increment_counter!("unauthorized_requests");
-                Err(StatusCode::UNAUTHORIZED)
-            }
-        }
-        Err(_) => unreachable!(),
+    let LoggedIn(logged_in) = LoggedIn::from_request(&mut request_parts)
+        .await
+        .expect("LoggedIn::from_request failed");
+
+    if logged_in {
+        let req = request_parts.try_into_request().expect("body extracted");
+        increment_counter!("authorized_requests");
+        Ok(next.run(req).await)
+    } else {
+        increment_counter!("unauthorized_requests");
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
 
@@ -73,21 +73,21 @@ where
     B: Send,
 {
     let mut request_parts = RequestParts::new(req);
-    match LoggedIn::from_request(&mut request_parts).await {
-        Ok(LoggedIn(logged_in)) => {
-            if logged_in {
-                if let Ok(mut session) = WritableSession::from_request(&mut request_parts).await {
-                    if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
-                        session.remove(SESSIONKEY_REDIRECTURL);
-                        return Ok(Redirect::temporary(&redirect_url).into_response());
-                    }
-                }
+
+    let LoggedIn(logged_in) = LoggedIn::from_request(&mut request_parts)
+        .await
+        .expect("LoggedIn::from_request failed");
+
+    if logged_in {
+        if let Ok(mut session) = WritableSession::from_request(&mut request_parts).await {
+            if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
+                session.remove(SESSIONKEY_REDIRECTURL);
+                return Ok(Redirect::temporary(&redirect_url).into_response());
             }
-            let req = request_parts.try_into_request().expect("body extracted");
-            Ok(next.run(req).await)
         }
-        Err(_) => unreachable!(),
     }
+    let req = request_parts.try_into_request().expect("body extracted");
+    Ok(next.run(req).await)
 }
 
 #[debug_handler]
