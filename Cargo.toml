@@ -11,7 +11,7 @@ async-trait = "0.1.58"
 axum = "0.5.17"
 axum-macros = "0.2.3"
 axum-sessions = "0.3.2"
-clap = { version = "4.0.24", features = ["std", "derive", "env"] }
+clap = { version = "4.0.26", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
 liquid = "0.26.0"
 metrics = "0.20.1"
@@ -20,19 +20,19 @@ mime_guess = "2.0.4"
 rusqlite = "0.28.0"
 rust-embed = { version = "6.4.2", features = ["interpolate-folder-path"] }
 serde = "1.0.147"
-serde_json = "1.0.87"
-tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
+serde_json = "1.0.88"
+tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
 tower-http = { version = "0.3.4", features = ["trace"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-uuid = "1.2.1"
-webauthn-authenticator-rs = "0.4.8"
+uuid = "1.2.2"
+webauthn-authenticator-rs = "0.4.9"
 webauthn-rs = { version = "0.4.8", features = [
   "danger-allow-state-serialisation",
   "danger-credential-internals",
   "resident-key-support",
 ] }
-webauthn-rs-core = "0.4.8"
-webauthn-rs-proto = "0.4.8"
+webauthn-rs-core = "0.4.9"
+webauthn-rs-proto = "0.4.9"
