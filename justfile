@@ -5,7 +5,13 @@ export ASSETS_DIRECTORY := env_var("out")
 help:
 	@just --list
 
-update_usage:
+# remove nix derivations and cargo/yarn outputs
+clean:
+	rm -rf $out/* result*
+	cargo clean
+
+# update README with usage string from cli's `--help` output
+update_usage: build
 	#!/usr/bin/env bash
 	set -e
 	readarray -t lines <<<"$(grep -n '```' README.md | cut -d':' -f1)"
