@@ -34,7 +34,7 @@ build: build-ui
 	cargo build
 
 build-ui:
-	yarn run build -- --outdir=$out
+	yarn build --outdir=$out
 
 check: build-ui
 	cargo check
