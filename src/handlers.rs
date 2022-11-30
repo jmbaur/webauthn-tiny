@@ -3,7 +3,7 @@ use app::SharedAppState;
 use async_trait::async_trait;
 use axum::{
     body::{boxed, Full},
-    extract::{self, ConnectInfo, FromRequestParts, Path, Query},
+    extract::{self, FromRequestParts, Path, Query},
     http::{header, request::Parts, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
@@ -15,7 +15,7 @@ use liquid::Template;
 use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::{convert::Infallible, sync::Arc};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
@@ -62,12 +62,16 @@ pub async fn require_logged_in<B>(
     }
 }
 
+/// Middleware that only allows connections from a loopback address. This assumes the server is
+/// behind a proxy that will forward a 'X-Forwarded-For' header.
 pub async fn allow_only_localhost<B>(req: Request<B>, next: Next<B>) -> Response {
-    if dbg!(req
-        .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .filter(|ConnectInfo(addr)| addr.ip().is_loopback())
-        .is_some())
+    if req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|hv| hv.to_str().ok())
+        .and_then(|s| s.split(',').find_map(|s| s.trim().parse::<IpAddr>().ok()))
+        .filter(|ip| ip.is_loopback())
+        .is_some()
     {
         next.run(req).await
     } else {

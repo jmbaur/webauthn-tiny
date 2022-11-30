@@ -147,6 +147,6 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::debug!("listening on {}", cli.address);
     Ok(Server::bind(&cli.address)
-        .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+        .serve(router.into_make_service())
         .await?)
 }
