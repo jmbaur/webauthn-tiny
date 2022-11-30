@@ -3,8 +3,8 @@ use app::SharedAppState;
 use async_trait::async_trait;
 use axum::{
     body::{boxed, Full},
-    extract::{self, FromRequest, Path, Query, RequestParts},
-    http::{header, HeaderMap, Request, StatusCode, Uri},
+    extract::{self, ConnectInfo, FromRequestParts, Path, Query},
+    http::{header, request::Parts, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     Extension, Json,
@@ -15,6 +15,7 @@ use liquid::Template;
 use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use std::{convert::Infallible, sync::Arc};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
@@ -31,63 +32,47 @@ const SESSIONKEY_USERNAME: &str = "username";
 pub struct LoggedIn(bool);
 
 #[async_trait]
-impl<B> FromRequest<B> for LoggedIn
+impl<B> FromRequestParts<B> for LoggedIn
 where
-    B: Send,
+    B: Send + std::marker::Sync,
 {
     type Rejection = Infallible;
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &B) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
-        if let Ok(session) = ReadableSession::from_request(req).await {
-            Ok(LoggedIn(
-                session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
-            ))
+        if let Ok(session) = ReadableSession::from_request_parts(parts, state).await {
+            let logged_in = session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default();
+            Ok(LoggedIn(logged_in))
         } else {
             Ok(LoggedIn(false))
         }
     }
 }
 
-pub async fn require_logged_in<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode>
-where
-    B: Send,
-{
-    let mut request_parts = RequestParts::new(req);
-    let LoggedIn(logged_in) = LoggedIn::from_request(&mut request_parts)
-        .await
-        .expect("LoggedIn::from_request failed");
-
+pub async fn require_logged_in<B>(
+    LoggedIn(logged_in): LoggedIn,
+    req: Request<B>,
+    next: Next<B>,
+) -> Response {
     if logged_in {
-        let req = request_parts.try_into_request().expect("body extracted");
         increment_counter!("authorized_requests");
-        Ok(next.run(req).await)
+        next.run(req).await
     } else {
         increment_counter!("unauthorized_requests");
-        Err(StatusCode::UNAUTHORIZED)
+        StatusCode::UNAUTHORIZED.into_response()
     }
 }
 
-/// redirector expects there to be an existing (validated) redirect URL in the session's data.
-pub async fn redirector<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode>
-where
-    B: Send,
-{
-    let mut request_parts = RequestParts::new(req);
-
-    let LoggedIn(logged_in) = LoggedIn::from_request(&mut request_parts)
-        .await
-        .expect("LoggedIn::from_request failed");
-
-    if logged_in {
-        if let Ok(mut session) = WritableSession::from_request(&mut request_parts).await {
-            if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
-                session.remove(SESSIONKEY_REDIRECTURL);
-                return Ok(Redirect::temporary(&redirect_url).into_response());
-            }
-        }
+pub async fn allow_only_localhost<B>(req: Request<B>, next: Next<B>) -> Response {
+    if dbg!(req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .filter(|ConnectInfo(addr)| addr.ip().is_loopback())
+        .is_some())
+    {
+        next.run(req).await
+    } else {
+        StatusCode::UNAUTHORIZED.into_response()
     }
-    let req = request_parts.try_into_request().expect("body extracted");
-    Ok(next.run(req).await)
 }
 
 #[debug_handler]
@@ -141,9 +126,9 @@ pub struct RegisterEndRequestPayload {
 #[debug_handler]
 pub async fn register_end_handler(
     mut session: WritableSession,
-    payload: extract::Json<RegisterEndRequestPayload>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
+    payload: extract::Json<RegisterEndRequestPayload>,
 ) -> Result<(), AppError> {
     tracing::trace!("register_end_handler");
 
@@ -244,9 +229,9 @@ pub async fn authenticate_start_handler(
 #[debug_handler]
 pub async fn authenticate_end_handler(
     mut session: WritableSession,
-    payload: extract::Json<PublicKeyCredential>,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
+    payload: extract::Json<PublicKeyCredential>,
 ) -> Result<(), AppError> {
     tracing::trace!("authenticate_end_handler");
 
@@ -413,8 +398,16 @@ pub async fn get_authenticate_template_handler(
     mut session: WritableSession,
     templates: Extension<Arc<Templates>>,
     webauthn: Extension<Arc<Webauthn>>,
-) -> Result<Html<String>, AppError> {
+) -> Response {
     tracing::trace!("get_authenticate_template_handler");
+
+    if logged_in {
+        if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
+            session.remove(SESSIONKEY_REDIRECTURL);
+            return Redirect::temporary(&redirect_url).into_response();
+        }
+    }
+
     let username = match headers.get("X-Remote-User") {
         Some(h) => {
             if let Ok(val) = h.to_str() {
@@ -424,15 +417,15 @@ pub async fn get_authenticate_template_handler(
                     "could not convert X-Remote-User header value '{:#?}' to string",
                     h
                 );
-                return Err(AppError::BadInput);
+                return AppError::BadInput.into_response();
             }
         }
-        None => return Err(AppError::MissingUserInfo),
+        None => return AppError::MissingUserInfo.into_response(),
     };
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
         tracing::error!("session.insert: {e}");
-        return Err(AppError::BadSession);
+        return AppError::BadSession.into_response();
     }
 
     let tmpl_data = liquid::object!({
@@ -446,16 +439,16 @@ pub async fn get_authenticate_template_handler(
             if !logged_in {
                 if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url) {
                     tracing::error!("session.insert: {e}");
-                    return Err(AppError::BadSession);
+                    return AppError::BadSession.into_response();
                 }
             }
         }
     }
     match templates.authenticate_template.render(&tmpl_data) {
-        Ok(html) => Ok(Html(finish_html(html))),
+        Ok(html) => Html(finish_html(html)).into_response(),
         Err(e) => {
             tracing::error!("parsed_template.render: {e}");
-            Err(AppError::UnknownError)
+            AppError::UnknownError.into_response()
         }
     }
 }

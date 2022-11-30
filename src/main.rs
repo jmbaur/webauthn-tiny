@@ -4,7 +4,6 @@ mod session;
 
 use app::App;
 use axum::{
-    handler::Handler,
     middleware,
     routing::{delete, get},
     Extension, Router, Server,
@@ -12,9 +11,10 @@ use axum::{
 use axum_sessions::SessionLayer;
 use clap::Parser;
 use handlers::{
-    authenticate_end_handler, authenticate_start_handler, delete_credentials_api_handler,
-    get_authenticate_template_handler, get_credentials_template_handler, redirector,
-    register_end_handler, register_start_handler, require_logged_in, root_handler, Templates,
+    allow_only_localhost, authenticate_end_handler, authenticate_start_handler,
+    delete_credentials_api_handler, get_authenticate_template_handler,
+    get_credentials_template_handler, register_end_handler, register_start_handler,
+    require_logged_in, root_handler, Templates,
 };
 use metrics::register_counter;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -107,7 +107,8 @@ async fn main() -> anyhow::Result<()> {
             "/metrics",
             get(
                 |prom_handle: Extension<Arc<PrometheusHandle>>| async move { prom_handle.render() },
-            ),
+            )
+            .layer(middleware::from_fn(allow_only_localhost)),
         )
         .route(
             "/api/validate",
@@ -130,13 +131,10 @@ async fn main() -> anyhow::Result<()> {
             delete(delete_credentials_api_handler).layer(middleware::from_fn(require_logged_in)),
         )
         // returns HTML
-        .route(
-            "/authenticate",
-            get(get_authenticate_template_handler).layer(middleware::from_fn(redirector)),
-        )
+        .route("/authenticate", get(get_authenticate_template_handler))
         // returns HTML
         .route("/credentials", get(get_credentials_template_handler))
-        .fallback(root_handler.into_service())
+        .fallback(root_handler)
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -149,6 +147,6 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::debug!("listening on {}", cli.address);
     Ok(Server::bind(&cli.address)
-        .serve(router.into_make_service())
+        .serve(router.into_make_service_with_connect_info::<SocketAddr>())
         .await?)
 }
