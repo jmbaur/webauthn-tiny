@@ -7,10 +7,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.66"
+argon2 = "0.4.1"
 async-trait = "0.1.59"
 axum = "0.6.1"
 axum-macros = "0.3.0"
 axum-sessions = "0.4.1"
+base64 = "0.13.1"
 clap = { version = "4.0.29", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
 liquid = "0.26.0"
