@@ -18,7 +18,7 @@ use handlers::{
 };
 use metrics::register_counter;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
-use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use tower::ServiceBuilder;
@@ -45,6 +45,8 @@ struct Cli {
     extra_allowed_origin: Vec<String>,
     #[clap(env, long, value_parser, help = "Session secret")]
     session_secret: String,
+    #[clap(env, long, value_parser, help = "Password file")]
+    password_file: PathBuf,
     #[clap(
         env,
         long,
@@ -53,6 +55,17 @@ struct Cli {
         default_value = "/var/lib/webauthn-tiny"
     )]
     state_directory: PathBuf,
+}
+
+fn read_password_file(filepath: PathBuf) -> anyhow::Result<HashMap<String, String>> {
+    let mut map = HashMap::new();
+    let contents = std::fs::read_to_string(filepath)?;
+    contents.split('\n').for_each(|line| {
+        if let Some((username, hash)) = line.split_once(':') {
+            map.insert(String::from(username), String::from(hash));
+        }
+    });
+    Ok(map)
 }
 
 #[tokio::main]
@@ -114,14 +127,12 @@ async fn main() -> anyhow::Result<()> {
             "/api/validate",
             get(|| async {}).layer(middleware::from_fn(require_logged_in)),
         )
-        // for registering a new credential
         .route(
             "/api/register",
             get(register_start_handler)
                 .post(register_end_handler)
                 .layer(middleware::from_fn(require_logged_in)),
         )
-        // for authenticating with an existing credential
         .route(
             "/api/authenticate",
             get(authenticate_start_handler).post(authenticate_end_handler),
@@ -130,9 +141,7 @@ async fn main() -> anyhow::Result<()> {
             "/api/credentials/:cred_id",
             delete(delete_credentials_api_handler).layer(middleware::from_fn(require_logged_in)),
         )
-        // returns HTML
         .route("/authenticate", get(get_authenticate_template_handler))
-        // returns HTML
         .route("/credentials", get(get_credentials_template_handler))
         .fallback(root_handler)
         .layer(
@@ -142,7 +151,8 @@ async fn main() -> anyhow::Result<()> {
                 .layer(Extension(Arc::new(RwLock::new(app))))
                 .layer(Extension(Arc::new(webauthn)))
                 .layer(Extension(Arc::new(templates)))
-                .layer(Extension(Arc::new(prometheus_handle))),
+                .layer(Extension(Arc::new(prometheus_handle)))
+                .layer(Extension(read_password_file(cli.password_file)?)),
         );
 
     tracing::debug!("listening on {}", cli.address);

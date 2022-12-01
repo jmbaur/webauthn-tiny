@@ -1,16 +1,10 @@
 # WebAuthnTiny
 
 The goal of this project is to provide a mechanism for securely accessing
-private resources over the internet in the simplest possible manner. It _only_
-handles the WebAuthn side of things, so you must manage 1FA outside of this. The
-server relies on an `X-Remote-User` header being set in order to determine which
-user is requesting for webauthn services. It is highly recommended to use this
-server with a reverse proxy that is protected by username and password. The
-reverse proxy can then set the required `X-Remote-User` header before proxying a
-request.
+private resources over the internet in the simplest possible manner.
 
 ```console
-Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret <SESSION_SECRET>
+Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret <SESSION_SECRET> --password-file <PASSWORD_FILE>
 
 Options:
       --address <ADDRESS>
@@ -23,6 +17,8 @@ Options:
           Extra allowed origin [env: EXTRA_ALLOWED_ORIGIN=]
       --session-secret <SESSION_SECRET>
           Session secret [env: SESSION_SECRET=]
+      --password-file <PASSWORD_FILE>
+          Password file [env: PASSWORD_FILE=]
       --state-directory <STATE_DIRECTORY>
           Directory to store program state [env: STATE_DIRECTORY=] [default: /var/lib/webauthn-tiny]
   -h, --help
@@ -30,6 +26,15 @@ Options:
   -V, --version
           Print version information
 ```
+
+## Password File
+
+The password file is similar to the htpasswd file format. Each username/hash
+pair is on a separate line. The pair is separated by a colon, where the password
+hash is an argon2 hash. An individual line in the file with a valid hash can be
+generated like so:
+
+`echo username:$(systemd-ask-password -n | argon2 $(openssl rand -hex 16) -id -e`
 
 ## Reverse Proxy Setup
 

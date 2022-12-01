@@ -15,5 +15,6 @@ nixosTest {
   testScript = ''
     machine.wait_for_unit("webauthn-tiny.service")
     machine.wait_for_open_port(8080)
+    machine.fail("curl -v --fail [::1]:8080/authenticate")
   '';
 }

@@ -1,8 +1,10 @@
 use crate::app::{self, AppError};
 use app::SharedAppState;
+use argon2::PasswordVerifier;
+use argon2::{password_hash::PasswordHash, Argon2};
 use async_trait::async_trait;
 use axum::{
-    body::{boxed, Full},
+    body::{boxed, Empty, Full},
     extract::{self, FromRequestParts, Path, Query},
     http::{header, request::Parts, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
@@ -16,7 +18,7 @@ use metrics::increment_counter;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
-use std::{convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
@@ -406,6 +408,7 @@ pub async fn get_authenticate_template_handler(
     mut session: WritableSession,
     templates: Extension<Arc<Templates>>,
     webauthn: Extension<Arc<Webauthn>>,
+    passwords: Extension<HashMap<String, String>>,
 ) -> Response {
     tracing::trace!("get_authenticate_template_handler");
 
@@ -416,30 +419,57 @@ pub async fn get_authenticate_template_handler(
         }
     }
 
-    let username = match headers.get("X-Remote-User") {
-        Some(h) => {
-            if let Ok(val) = h.to_str() {
-                val.to_string()
-            } else {
-                tracing::error!(
-                    "could not convert X-Remote-User header value '{:#?}' to string",
-                    h
-                );
-                return AppError::BadInput.into_response();
-            }
-        }
-        None => return AppError::MissingUserInfo.into_response(),
+    let needs_authentication_response = Response::builder()
+        .header(header::WWW_AUTHENTICATE, "Basic")
+        .status(StatusCode::UNAUTHORIZED)
+        .body(boxed(Empty::new()))
+        .expect("could not build response");
+
+    let authorization = match headers.get("Authorization") {
+        Some(a) => a,
+        None => return needs_authentication_response,
     };
+
+    let (username, password) = match authorization
+        .to_str()
+        .ok()
+        .and_then(|authorization_header| {
+            base64::decode(authorization_header.trim_start_matches("Basic "))
+                .ok()
+                .and_then(|decoded_auth| {
+                    String::from_utf8(decoded_auth).ok().and_then(|str_auth| {
+                        str_auth
+                            .split_once(':')
+                            .map(|(u, p)| (String::from(u), String::from(p)))
+                    })
+                })
+        }) {
+        Some(a) => a,
+        _ => return needs_authentication_response,
+    };
+
+    if passwords
+        .get(&username)
+        .and_then(|hashed_password| {
+            PasswordHash::new(hashed_password)
+                .ok()
+                .and_then(|parsed_hash| {
+                    Argon2::default()
+                        .verify_password(password.as_bytes(), &parsed_hash)
+                        .ok()
+                })
+        })
+        .is_none()
+    {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
         tracing::error!("session.insert: {e}");
         return AppError::BadSession.into_response();
     }
 
-    let tmpl_data = liquid::object!({
-        "username": username,
-        "logged_in": logged_in,
-    });
+    let tmpl_data = liquid::object!({ "username": username, "logged_in": logged_in });
     if let Some(redirect_url) = &params.redirect_url {
         if let Ok(accepted_redirect_url) =
             get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())

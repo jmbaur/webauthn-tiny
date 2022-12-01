@@ -1,6 +1,7 @@
 # vim: ft=make
 
 export ASSETS_DIRECTORY := env_var("out")
+export WEBAUTHN_TINY_LOG := "debug"
 
 help:
 	@just --list
@@ -27,7 +28,7 @@ update: update_usage
 	cargo upgrade
 	yarn upgrade
 
-setup:
+deps:
 	yarn install
 
 build: build-ui
@@ -40,15 +41,16 @@ check: build-ui
 	cargo check
 	cargo test
 
-ci: setup check
+ci: deps check
 
 run: build-ui
 	#!/usr/bin/env bash
-	export WEBAUTHN_TINY_LOG="debug"
 	state_directory="{{justfile_directory()}}/state"
 	mkdir -p $state_directory
+	[[ -f $state_directory/passwd_file ]] || echo "user:$(printf "password" | argon2 saltsaltsaltsalt -id -e)" >$state_directory/passwd_file  
 	cargo run -- \
 		--rp-id=localhost \
 		--rp-origin=http://localhost:8080 \
 		--session-secret=$(openssl rand -hex 64) \
+		--password-file=$state_directory/passwd_file \
 		--state-directory=$state_directory

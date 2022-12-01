@@ -14,6 +14,24 @@ in
           Must be in the form of SESSION_SECRET=<value>.
         '';
       };
+      basicAuth = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        description = ''
+          A static mapping of usernames to passwords. WARNING: only use this
+          for testing purposes.
+        '';
+        default = { };
+        example = { myuser = "mypassword"; };
+      };
+      basicAuthFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          The path to a password file. This file must contain lines in the form
+          of "<username>:<argon2_hash>". A valid Argon2 hash can be generated
+          using the `libargon2` package like so: `argon2 <salt> -id -e`.
+        '';
+      };
       relyingParty = {
         id = lib.mkOption {
           type = lib.types.str;
@@ -48,22 +66,6 @@ in
           description = ''
             The virtual host that this service will serve on.
           '';
-        };
-        basicAuth = lib.mkOption {
-          type = lib.types.attrsOf lib.types.str;
-          description = ''
-            A static mapping of usernames to passwords. WARNING: only use this
-            for testing purposes.
-          '';
-          default = { };
-          example = { myuser = "mypassword"; };
-        };
-        basicAuthFile = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
-          description = ''
-            A path to an htpasswd file.
-          '';
-          default = null;
         };
         protectedVirtualHosts = lib.mkOption {
           type = lib.types.listOf lib.types.str;
@@ -121,12 +123,6 @@ in
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
             locations."/" = withProxy { };
-            locations."~ ^/authenticate" = withProxy {
-              inherit (cfg.nginx) basicAuthFile basicAuth;
-              extraConfig = ''
-                proxy_set_header X-Remote-User   $remote_user;
-              '';
-            };
           };
       };
     };
@@ -138,14 +134,31 @@ in
       serviceConfig = {
         StateDirectory = "webauthn-tiny";
         EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
-        ExecStart = lib.escapeShellArgs ([
-          "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
-          "--rp-id=${cfg.relyingParty.id}"
-          "--rp-origin=${cfg.relyingParty.origin}"
-        ] ++ (map
-          (origin: "--extra-allowed-origin=${origin}")
-          cfg.relyingParty.extraAllowedOrigins)
-        );
+        ExecStart =
+          let
+            generatedPasswordFile = pkgs.runCommand "generated-password-file" { } (
+              ''
+                touch $out
+                salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
+              ''
+              +
+              (lib.concatStringsSep "\n"
+                (lib.mapAttrsToList
+                  (username: password: ''
+                    echo ${username}:$(printf \"${password}\" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
+                  '')
+                  cfg.basicAuth))
+            );
+          in
+          lib.escapeShellArgs ([
+            "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
+            "--rp-id=${cfg.relyingParty.id}"
+            "--rp-origin=${cfg.relyingParty.origin}"
+            "--password-file=${if cfg.basicAuthFile != null then cfg.basicAuthFile else generatedPasswordFile}"
+          ] ++ (map
+            (origin: "--extra-allowed-origin=${origin}")
+            cfg.relyingParty.extraAllowedOrigins)
+          );
 
         CapabilityBoundingSet = [ ];
         DeviceAllow = [ ];
