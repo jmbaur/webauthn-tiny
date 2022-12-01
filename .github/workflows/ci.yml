@@ -1,7 +1,6 @@
 name: ci
 on:
   workflow_dispatch: # allows manual triggering
-  push:
   pull_request:
     branches:
       - main
