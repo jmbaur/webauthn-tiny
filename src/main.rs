@@ -43,8 +43,8 @@ struct Cli {
     rp_origin: String,
     #[clap(env, long, value_parser, help = "Extra allowed origin")]
     extra_allowed_origin: Vec<String>,
-    #[clap(env, long, value_parser, help = "Session secret")]
-    session_secret: String,
+    #[clap(env, long, value_parser, help = "Session secret file")]
+    session_secret_file: PathBuf,
     #[clap(env, long, value_parser, help = "Password file")]
     password_file: PathBuf,
     #[clap(
@@ -97,8 +97,11 @@ async fn main() -> anyhow::Result<()> {
 
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
-    let session_layer = SessionLayer::new(store, cli.session_secret.as_bytes())
-        .with_cookie_domain(cli.rp_id.clone());
+    let session_layer = SessionLayer::new(
+        store,
+        std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
+    )
+    .with_cookie_domain(cli.rp_id.clone());
 
     let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;

@@ -1,21 +1,28 @@
 { config, lib, pkgs, ... }:
+with lib;
 let
   cfg = config.services.webauthn-tiny;
+  passwordFile = if (cfg.basicAuthFile != null) then cfg.basicAuthFile else
+  (pkgs.runCommand "generated-password-file" { } (''
+    touch $out
+    salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
+  '' + (concatStringsSep ";"
+    (mapAttrsToList
+      (username: password: ''
+        echo ${username}:$(printf "${password}" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
+      '')
+      cfg.basicAuth))
+  ));
+  sessionSecretFile = if (cfg.sessionSecretFile != null) then cfg.sessionSecretFile else
+  (pkgs.runCommand "generated-session-secret-file" { } "${pkgs.openssl}/bin/openssl rand -hex 64 > $out");
 in
 {
   options = {
     services.webauthn-tiny = {
-      enable = lib.mkEnableOption "webauthn-tiny server";
-      package = lib.mkPackageOption pkgs "webauthn-tiny" { };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        description = ''
-          Path to a file containing the session secret value for the server.
-          Must be in the form of SESSION_SECRET=<value>.
-        '';
-      };
-      basicAuth = lib.mkOption {
-        type = lib.types.attrsOf lib.types.str;
+      enable = mkEnableOption "webauthn-tiny server";
+      package = mkPackageOption pkgs "webauthn-tiny" { };
+      basicAuth = mkOption {
+        type = types.attrsOf types.str;
         description = ''
           A static mapping of usernames to passwords. WARNING: only use this
           for testing purposes.
@@ -23,8 +30,8 @@ in
         default = { };
         example = { myuser = "mypassword"; };
       };
-      basicAuthFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+      basicAuthFile = mkOption {
+        type = types.nullOr types.path;
         default = null;
         description = ''
           The path to a password file. This file must contain lines in the form
@@ -32,25 +39,33 @@ in
           using the `libargon2` package like so: `argon2 <salt> -id -e`.
         '';
       };
+      sessionSecretFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = ''
+          The path to a file containing a session secret (64 or more bytes).
+          You can use `openssl rand -hex 64` to generate a session secret.
+        '';
+      };
       relyingParty = {
-        id = lib.mkOption {
-          type = lib.types.str;
+        id = mkOption {
+          type = types.str;
           description = ''
             An ID that corresponds to the domain applicable for that Relying
             Party.
           '';
           example = "mywebsite.com";
         };
-        origin = lib.mkOption {
-          type = lib.types.str;
+        origin = mkOption {
+          type = types.str;
           description = ''
             The origin on which registrations for the Relying Party will take
             place.
           '';
           example = "https://mywebsite.com";
         };
-        extraAllowedOrigins = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        extraAllowedOrigins = mkOption {
+          type = types.listOf types.str;
           default = [ ];
           description = ''
             Extra allowed origins that will be allowed for redirects and trusted
@@ -60,24 +75,24 @@ in
         };
       };
       nginx = {
-        enable = lib.mkEnableOption "nginx support";
-        virtualHost = lib.mkOption {
-          type = lib.types.str;
+        enable = mkEnableOption "nginx support";
+        virtualHost = mkOption {
+          type = types.str;
           description = ''
             The virtual host that this service will serve on.
           '';
         };
-        protectedVirtualHosts = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        protectedVirtualHosts = mkOption {
+          type = types.listOf types.str;
           description = ''
             A list of virtual hosts that will be protected by this webauthn
             server. This uses nginx's auth_request functionality.
           '';
           default = [ ];
         };
-        enableACME = lib.mkEnableOption "enable ACME on this virtual host";
-        useACMEHost = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
+        enableACME = mkEnableOption "enable ACME on this virtual host";
+        useACMEHost = mkOption {
+          type = types.nullOr types.str;
           default = null;
           description = ''
             Whether to ask Let's Encrypt to sign a certificate for this vhost.
@@ -88,10 +103,10 @@ in
       };
     };
   };
-  config = lib.mkIf cfg.enable {
-    services.nginx = lib.mkIf cfg.nginx.enable {
+  config = mkIf cfg.enable {
+    services.nginx = mkIf cfg.nginx.enable {
       enable = true;
-      virtualHosts = lib.genAttrs cfg.nginx.protectedVirtualHosts
+      virtualHosts = genAttrs cfg.nginx.protectedVirtualHosts
         (_: {
           extraConfig = ''
             auth_request /auth;
@@ -129,33 +144,16 @@ in
       environment.WEBAUTHN_TINY_LOG = "info";
       serviceConfig = {
         StateDirectory = "webauthn-tiny";
-        EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
+        LoadCredential = [ "password-file:${passwordFile}" "session-secret-file:${sessionSecretFile}" ];
         ExecStart =
-          let
-            generatedPasswordFile = pkgs.runCommand "generated-password-file" { } (
-              ''
-                touch $out
-                salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
-              ''
-              +
-              (lib.concatStringsSep ";"
-                (lib.mapAttrsToList
-                  (username: password: ''
-                    echo ${username}:$(printf "${password}" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
-                  '')
-                  cfg.basicAuth))
-            );
-          in
-          lib.escapeShellArgs ([
+          escapeShellArgs ([
             "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
             "--rp-id=${cfg.relyingParty.id}"
             "--rp-origin=${cfg.relyingParty.origin}"
-            "--password-file=${if cfg.basicAuthFile != null then cfg.basicAuthFile else generatedPasswordFile}"
-          ] ++ (map
-            (origin: "--extra-allowed-origin=${origin}")
-            cfg.relyingParty.extraAllowedOrigins)
+            "--password-file=\${CREDENTIALS_DIRECTORY}/password-file"
+            "--session-secret-file=\${CREDENTIALS_DIRECTORY}/session-secret-file"
+          ] ++ (map (origin: "--extra-allowed-origin=${origin}") cfg.relyingParty.extraAllowedOrigins)
           );
-
         CapabilityBoundingSet = [ ];
         DeviceAllow = [ ];
         DynamicUser = true;

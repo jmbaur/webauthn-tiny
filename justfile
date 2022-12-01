@@ -47,10 +47,9 @@ run: build-ui
 	#!/usr/bin/env bash
 	state_directory="{{justfile_directory()}}/state"
 	mkdir -p $state_directory
-	[[ -f $state_directory/passwd_file ]] || echo "user:$(printf "password" | argon2 saltsaltsaltsalt -id -e)" >$state_directory/passwd_file  
 	cargo run -- \
 		--rp-id=localhost \
 		--rp-origin=http://localhost:8080 \
-		--session-secret=$(openssl rand -hex 64) \
-		--password-file=$state_directory/passwd_file \
-		--state-directory=$state_directory
+		--state-directory=$state_directory \
+		--password-file=<(echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e)) \
+		--session-secret-file=<(openssl rand -hex 64)

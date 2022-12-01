@@ -4,7 +4,7 @@ The goal of this project is to provide a mechanism for securely accessing
 private resources over the internet in the simplest possible manner.
 
 ```console
-Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret <SESSION_SECRET> --password-file <PASSWORD_FILE>
+Usage: webauthn-tiny [OPTIONS] --rp-id <RP_ID> --rp-origin <RP_ORIGIN> --session-secret-file <SESSION_SECRET_FILE> --password-file <PASSWORD_FILE>
 
 Options:
       --address <ADDRESS>
@@ -15,8 +15,8 @@ Options:
           Relying Party origin [env: RP_ORIGIN=]
       --extra-allowed-origin <EXTRA_ALLOWED_ORIGIN>
           Extra allowed origin [env: EXTRA_ALLOWED_ORIGIN=]
-      --session-secret <SESSION_SECRET>
-          Session secret [env: SESSION_SECRET=]
+      --session-secret-file <SESSION_SECRET_FILE>
+          Session secret file [env: SESSION_SECRET_FILE=]
       --password-file <PASSWORD_FILE>
           Password file [env: PASSWORD_FILE=]
       --state-directory <STATE_DIRECTORY>
