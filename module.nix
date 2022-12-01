@@ -109,21 +109,17 @@ in
           };
           locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
         }) // {
-        ${cfg.nginx.virtualHost} =
-          let
-            withProxy = { extraConfig ? "", ... }@args: args // {
-              proxyPass = "http://[::1]:8080";
-              extraConfig = extraConfig + ''
-                proxy_set_header Host            $host;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-              '';
-            };
-          in
-          {
-            inherit (cfg.nginx) enableACME useACMEHost;
-            forceSSL = true; # webauthn is only available over HTTPS
-            locations."/" = withProxy { };
+        ${cfg.nginx.virtualHost} = {
+          inherit (cfg.nginx) enableACME useACMEHost;
+          forceSSL = true; # webauthn is only available over HTTPS
+          locations."/" = {
+            proxyPass = "http://[::1]:8080";
+            extraConfig = ''
+              proxy_set_header Host            $host;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            '';
           };
+        };
       };
     };
 
