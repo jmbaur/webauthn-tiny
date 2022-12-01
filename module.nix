@@ -142,10 +142,10 @@ in
                 salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
               ''
               +
-              (lib.concatStringsSep "\n"
+              (lib.concatStringsSep ";"
                 (lib.mapAttrsToList
                   (username: password: ''
-                    echo ${username}:$(printf \"${password}\" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
+                    echo ${username}:$(printf "${password}" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
                   '')
                   cfg.basicAuth))
             );
