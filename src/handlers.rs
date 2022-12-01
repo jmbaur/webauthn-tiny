@@ -62,14 +62,18 @@ pub async fn require_logged_in<B>(
     }
 }
 
-/// Middleware that only allows connections from a loopback address. This assumes the server is
-/// behind a proxy that will forward a 'X-Forwarded-For' header.
+/// Middleware that only allows connections from a loopback address. NOTE: This assumes the server
+/// is running behind a reverse proxy (and is only safe if it this is the case).
 pub async fn allow_only_localhost<B>(req: Request<B>, next: Next<B>) -> Response {
     if req
         .headers()
         .get("x-forwarded-for")
-        .and_then(|hv| hv.to_str().ok())
-        .and_then(|s| s.split(',').find_map(|s| s.trim().parse::<IpAddr>().ok()))
+        .and_then(|s| s.to_str().ok())
+        .and_then(|s| {
+            s.split(',')
+                .last()
+                .and_then(|s| s.trim().parse::<IpAddr>().ok())
+        })
         .filter(|ip| ip.is_loopback())
         .is_some()
     {
