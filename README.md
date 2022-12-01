@@ -34,7 +34,9 @@ pair is on a separate line. The pair is separated by a colon, where the password
 hash is an argon2 hash. An individual line in the file with a valid hash can be
 generated like so:
 
-`echo username:$(systemd-ask-password -n | argon2 $(openssl rand -hex 16) -id -e`
+```bash
+echo username:$(systemd-ask-password -n | argon2 $(openssl rand -hex 16) -id -e)
+```
 
 ## Reverse Proxy Setup
 
