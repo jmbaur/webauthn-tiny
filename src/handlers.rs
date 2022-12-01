@@ -419,15 +419,14 @@ pub async fn get_authenticate_template_handler(
         }
     }
 
-    let needs_authentication_response = Response::builder()
+    let needs_basic_auth_response = Response::builder()
         .header(header::WWW_AUTHENTICATE, "Basic")
         .status(StatusCode::UNAUTHORIZED)
         .body(boxed(Empty::new()))
         .expect("could not build response");
-
     let authorization = match headers.get("Authorization") {
         Some(a) => a,
-        None => return needs_authentication_response,
+        None => return needs_basic_auth_response,
     };
 
     let (username, password) = match authorization
@@ -445,7 +444,7 @@ pub async fn get_authenticate_template_handler(
                 })
         }) {
         Some(a) => a,
-        _ => return needs_authentication_response,
+        _ => return needs_basic_auth_response,
     };
 
     if passwords
@@ -461,7 +460,7 @@ pub async fn get_authenticate_template_handler(
         })
         .is_none()
     {
-        return StatusCode::UNAUTHORIZED.into_response();
+        return Html(String::from("<main><p>Unauthorized</p></main>")).into_response();
     }
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
