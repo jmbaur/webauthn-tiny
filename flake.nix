@@ -22,7 +22,7 @@
       };
       devShells = forAllSystems ({ pkgs, system, ... }: {
         default = self.devShells.${system}.ci.overrideAttrs (old: {
-          buildInputs = old.buildInputs ++ [ pkgs.libargon2 ];
+          buildInputs = old.buildInputs ++ [ pkgs.cargo-watch pkgs.libargon2 ];
           inherit (pre-commit.lib.${system}.run {
             src = ./.;
             hooks = { clippy.enable = true; deadnix.enable = true; nixpkgs-fmt.enable = true; rustfmt.enable = true; };

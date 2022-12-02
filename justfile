@@ -47,9 +47,10 @@ run: build-ui
 	#!/usr/bin/env bash
 	state_directory="{{justfile_directory()}}/state"
 	mkdir -p $state_directory
-	cargo run -- \
-		--rp-id=localhost \
-		--rp-origin=http://localhost:8080 \
-		--state-directory=$state_directory \
-		--password-file=<(echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e)) \
-		--session-secret-file=<(openssl rand -hex 64)
+	args=()
+	args+="--rp-id=localhost "
+	args+="--rp-origin=http://localhost:8080 "
+	args+="--state-directory=$state_directory "
+	args+="--password-file=<(echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e)) "
+	args+="--session-secret-file=<(openssl rand -hex 64) "
+	cargo watch --exec "run -- ${args[@]}"
