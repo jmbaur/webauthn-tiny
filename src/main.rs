@@ -58,14 +58,14 @@ struct Cli {
 }
 
 fn read_password_file(filepath: PathBuf) -> anyhow::Result<HashMap<String, String>> {
-    let mut map = HashMap::new();
-    let contents = std::fs::read_to_string(filepath)?;
-    contents.split('\n').for_each(|line| {
-        if let Some((username, hash)) = line.split_once(':') {
-            map.insert(String::from(username), String::from(hash));
-        }
-    });
-    Ok(map)
+    Ok(std::fs::read_to_string(filepath)?
+        .lines()
+        .fold(HashMap::new(), |mut acc, cur| {
+            if let Some((username, hash)) = cur.split_once(':') {
+                acc.insert(String::from(username), String::from(hash));
+            }
+            acc
+        }))
 }
 
 #[tokio::main]
