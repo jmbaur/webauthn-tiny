@@ -460,7 +460,10 @@ pub async fn get_authenticate_template_handler(
         })
         .is_none()
     {
-        return Html(String::from("<main><p>Unauthorized</p></main>")).into_response();
+        return Html(finish_html(String::from(
+            "<main><p>Unauthorized</p></main>",
+        )))
+        .into_response();
     }
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
