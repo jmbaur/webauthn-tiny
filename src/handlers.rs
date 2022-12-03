@@ -460,10 +460,13 @@ pub async fn get_authenticate_template_handler(
         })
         .is_none()
     {
-        return Html(finish_html(String::from(
-            "<main><p>Unauthorized</p></main>",
-        )))
-        .into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Html(finish_html(String::from(
+                "<main><p>Unauthorized</p></main>",
+            ))),
+        )
+            .into_response();
     }
 
     if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
@@ -471,19 +474,22 @@ pub async fn get_authenticate_template_handler(
         return AppError::BadSession.into_response();
     }
 
-    let tmpl_data = liquid::object!({ "username": username, "logged_in": logged_in });
-    if let Some(redirect_url) = &params.redirect_url {
-        if let Ok(accepted_redirect_url) =
+    if !logged_in {
+        if let Some(app_error) = params.redirect_url.as_ref().and_then(|redirect_url| {
             get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
-        {
-            if !logged_in {
-                if let Err(e) = session.insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url) {
-                    tracing::error!("session.insert: {e}");
-                    return AppError::BadSession.into_response();
-                }
-            }
+                .ok()
+                .and_then(|accepted_redirect_url| {
+                    session
+                        .insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url)
+                        .err()
+                        .and(Some(AppError::BadSession))
+                })
+        }) {
+            return app_error.into_response();
         }
     }
+
+    let tmpl_data = liquid::object!({ "username": username, "logged_in": logged_in });
     match templates.authenticate_template.render(&tmpl_data) {
         Ok(html) => Html(finish_html(html)).into_response(),
         Err(e) => {
@@ -515,17 +521,17 @@ fn finish_html(page_html: String) -> String {
     format!("{}{}{}", TOP_HTML, page_html, BOTTOM_HTML)
 }
 
-fn get_redirect_url(requested_url: String, allowed_origins: &[Url]) -> anyhow::Result<String> {
+fn get_redirect_url(requested_url: String, allowed_origins: &[Url]) -> Result<String, AppError> {
     if let Ok(url) = Url::parse(&requested_url) {
         if allowed_origins.iter().any(|u| u.origin() == url.origin()) {
             Ok(requested_url)
         } else {
-            anyhow::bail!("origin not allowed")
+            Err(AppError::OriginNotAllowed)
         }
     } else if requested_url.starts_with('/') {
         Ok(requested_url)
     } else {
-        anyhow::bail!("bad url")
+        Err(AppError::BadUrl)
     }
 }
 

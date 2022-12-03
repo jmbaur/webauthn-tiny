@@ -22,6 +22,8 @@ pub enum AppError {
     MissingUserInfo,
     UserNotFound,
     CredentialNotFound,
+    BadUrl,
+    OriginNotAllowed,
     MismatchingCredential,
     DuplicateCredential,
     BadInput,
