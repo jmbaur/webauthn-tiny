@@ -1,10 +1,10 @@
-name: update-flake-lock
+name: update-deps
 on:
   workflow_dispatch: # allows manual triggering
   schedule:
     - cron: '0 0 * * 0' # runs weekly on Sunday at 00:00
 jobs:
-  update-deps:
+  project-deps:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
