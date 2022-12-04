@@ -52,10 +52,11 @@ run: build-ui
 	[[ -f $password_file ]] || echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e) > $password_file
 	session_secret_file=$state_directory/session_secret
 	[[ -f $session_secret_file ]] || openssl rand -hex 64 > $session_secret_file
+	function arg() { printf "%s " $1; }
 	args=()
-	args+="--rp-id=localhost "
-	args+="--rp-origin=http://localhost:8080 "
-	args+="--state-directory=$state_directory "
-	args+="--password-file=$password_file "
-	args+="--session-secret-file=$session_secret_file "
+	args+=$(arg "--rp-id=localhost")
+	args+=$(arg "--rp-origin=http://localhost:8080")
+	args+=$(arg "--state-directory=$state_directory")
+	args+=$(arg "--password-file=$password_file")
+	args+=$(arg "--session-secret-file=$session_secret_file")
 	cargo watch --exec "run -- ${args[@]}"
