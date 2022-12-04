@@ -9,6 +9,7 @@ help:
 # remove nix derivations and cargo/yarn outputs
 clean:
 	rm -rf $out/* result*
+	rm -rf node_modules
 	cargo clean
 
 # update README with usage string from cli's `--help` output
@@ -23,7 +24,7 @@ update_usage: build
 	sed -i "${lines[0]},${lines[1]} d" README.md
 	sed -i "$(("${lines[0]}" - 1)) r $tmpfile" README.md
 
-update: update_usage
+update: deps update_usage
 	cargo update
 	cargo upgrade
 	yarn upgrade
