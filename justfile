@@ -35,7 +35,7 @@ deps:
 build: build-ui
 	cargo build
 
-build-ui:
+build-ui: deps
 	yarn build --outdir=$out
 
 check: build-ui
