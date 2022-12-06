@@ -8,7 +8,7 @@ use axum::{
     routing::{delete, get},
     Extension, Router, Server,
 };
-use axum_sessions::SessionLayer;
+use axum_sessions::{PersistencePolicy, SessionLayer};
 use clap::Parser;
 use handlers::{
     allow_only_localhost, authenticate_end_handler, authenticate_start_handler,
@@ -101,6 +101,7 @@ async fn main() -> anyhow::Result<()> {
         store,
         std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
     )
+    .with_persistence_policy(PersistencePolicy::ChangedOnly)
     .with_cookie_domain(&cli.rp_id);
 
     let app = App::new(db, cli.rp_id, cli.rp_origin);
