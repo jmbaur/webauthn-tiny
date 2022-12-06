@@ -101,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
         store,
         std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
     )
-    .with_cookie_domain(cli.rp_id.clone());
+    .with_cookie_domain(&cli.rp_id);
 
     let app = App::new(db, cli.rp_id, cli.rp_origin);
     app.init().await?;

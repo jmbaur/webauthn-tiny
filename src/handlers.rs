@@ -175,7 +175,7 @@ pub async fn register_end_handler(
         return Err(AppError::DuplicateCredential);
     }
 
-    app.add_credential(username, payload.name.clone(), passkey)
+    app.add_credential(username, payload.name.clone(), &passkey)
         .await?;
 
     session.remove(SESSIONKEY_PASSKEYREGISTRATION);

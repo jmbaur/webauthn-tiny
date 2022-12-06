@@ -177,7 +177,8 @@ impl App {
         username: String,
     ) -> Result<UserWithCredentials, AppError> {
         self.db
-            .call(|conn| {
+            .call(move |conn| {
+                let username = &username;
                 let user = conn
                     .prepare(
                         r#"select u.id, u.username, c.name, c.value
@@ -185,7 +186,7 @@ impl App {
                            left join credentials c on u.id = c.user
                            where username = ?1"#,
                     )?
-                    .query_map((username.clone(),), |row| {
+                    .query_map((username,), |row| {
                         Ok((
                             row.get::<_, String>(0)?,
                             row.get::<_, String>(1)?,
@@ -221,7 +222,7 @@ impl App {
                     r#"insert into users (id, username)
                        values (?1, ?2)
                        returning id, username"#,
-                    (Uuid::new_v4().to_string(), username),
+                    (&Uuid::new_v4().to_string(), username),
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 )?;
 
@@ -238,7 +239,7 @@ impl App {
         &self,
         username: String,
         credential_name: String,
-        credential: Passkey,
+        credential: &Passkey,
     ) -> Result<(), AppError> {
         let value = match serde_json::to_string(&credential) {
             Ok(v) => v,
@@ -395,7 +396,7 @@ mod tests {
         app.add_credential(
             user.username,
             "bar_credential".to_string(),
-            Passkey::from(cred.clone()),
+            &Passkey::from(cred.clone()),
         )
         .await
         .unwrap();
@@ -406,7 +407,8 @@ mod tests {
             .unwrap();
         assert!(user.credentials.len() == 1);
 
-        // app.update_credential(); // TODO(jared): test this
+        // TODO(jared): test this
+        // app.update_credential();
 
         app.delete_credential(cred.cred_id.to_string())
             .await
