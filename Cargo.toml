@@ -1,6 +1,6 @@
 [package]
 name = "webauthn-tiny"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -21,9 +21,9 @@ metrics-exporter-prometheus = "0.11.0"
 mime_guess = "2.0.4"
 rusqlite = "0.28.0"
 rust-embed = { version = "6.4.2", features = ["interpolate-folder-path"] }
-serde = "1.0.148"
+serde = "1.0.149"
 serde_json = "1.0.89"
-tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.23.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
