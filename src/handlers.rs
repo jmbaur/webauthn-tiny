@@ -42,8 +42,9 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &B) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
         if let Ok(session) = ReadableSession::from_request_parts(parts, state).await {
-            let logged_in = session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default();
-            Ok(LoggedIn(logged_in))
+            Ok(LoggedIn(
+                session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
+            ))
         } else {
             Ok(LoggedIn(false))
         }
@@ -93,15 +94,14 @@ pub async fn register_start_handler(
 ) -> Result<Json<CreationChallengeResponse>, AppError> {
     tracing::trace!("register_start_handler");
 
-    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
-        Some(u) => u,
-        None => return Err(AppError::BadSession),
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+        return Err(AppError::BadSession);
     };
 
     let app = shared_state.read().await;
     let user = app.get_user_with_credentials(username).await?;
 
-    let (req_chal, passkey_reg) = match webauthn.start_passkey_registration(
+    let Ok((req_chal, passkey_reg)) = webauthn.start_passkey_registration(
         user.id,
         &user.username,
         &user.username, // use username as display name
@@ -111,12 +111,8 @@ pub async fn register_start_handler(
                 .map(|c| c.credential.cred_id().to_owned())
                 .collect(),
         ),
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::error!("webauthn.start_passkey_registration: {e}");
-            return Err(AppError::WebauthnFailed);
-        }
+    ) else {
+        return Err(AppError::WebauthnFailed);
     };
 
     if let Err(e) = session.insert(SESSIONKEY_PASSKEYREGISTRATION, passkey_reg) {
@@ -142,26 +138,20 @@ pub async fn register_end_handler(
 ) -> Result<(), AppError> {
     tracing::trace!("register_end_handler");
 
-    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
-        Some(u) => u,
-        None => return Err(AppError::BadSession),
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+        return Err(AppError::BadSession);
     };
 
     let app = shared_state.read().await;
 
-    let passkey_reg = match session.get::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION) {
-        Some(s) => s,
-        _ => return Err(AppError::BadSession),
+    let Some(passkey_reg) = session.get::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION) else {
+        return Err(AppError::BadSession);
     };
 
-    let passkey = match webauthn.finish_passkey_registration(&payload.credential, &passkey_reg) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::error!("webauthn.finish_passkey_registration: {e}");
-            increment_counter!("failed_webauthn_registrations");
-            session.remove(SESSIONKEY_PASSKEYREGISTRATION);
-            return Err(AppError::WebauthnFailed);
-        }
+    let Ok(passkey) = webauthn.finish_passkey_registration(&payload.credential, &passkey_reg) else {
+                increment_counter!("failed_webauthn_registrations");
+                session.remove(SESSIONKEY_PASSKEYREGISTRATION);
+                return Err(AppError::WebauthnFailed);
     };
 
     let user = app.get_user_with_credentials(username.clone()).await?;
@@ -193,9 +183,8 @@ pub async fn authenticate_start_handler(
 ) -> Result<Json<RequestChallengeResponse>, AppError> {
     tracing::trace!("authenticate_start_handler");
 
-    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
-        Some(u) => u,
-        None => return Err(AppError::BadSession),
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+         return Err(AppError::BadSession);
     };
 
     let user = shared_state
@@ -219,13 +208,9 @@ pub async fn authenticate_start_handler(
         .map(|c| c.credential.to_owned())
         .collect();
 
-    let (req_chal, passkey_auth) = match webauthn.start_passkey_authentication(&passkeys) {
-        Ok(a) => a,
-        Err(e) => {
-            tracing::error!("webauthn.start_passkey_authentication: {e}");
+    let Ok((req_chal, passkey_auth)) = webauthn.start_passkey_authentication(&passkeys) else {
             increment_counter!("failed_webauthn_authentications");
             return Err(AppError::WebauthnFailed);
-        }
     };
 
     if let Err(e) = session.insert(SESSIONKEY_PASSKEYAUTHENTICATION, passkey_auth) {
@@ -245,20 +230,13 @@ pub async fn authenticate_end_handler(
 ) -> Result<(), AppError> {
     tracing::trace!("authenticate_end_handler");
 
-    let passkey_authentication =
-        match session.get::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION) {
-            Some(a) => a,
-            None => return Err(AppError::BadSession),
+    let Some(passkey_authentication) = session.get::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION) else {
+         return Err(AppError::BadSession);
         };
 
-    let auth_result =
-        match webauthn.finish_passkey_authentication(&payload.0, &passkey_authentication) {
-            Ok(a) => a,
-            Err(e) => {
-                tracing::error!("webauthn.finish_passkey_authentication: {e}");
+    let Ok(auth_result) = webauthn.finish_passkey_authentication(&payload.0, &passkey_authentication) else {
                 increment_counter!("failed_webauthn_authentications");
                 return Err(AppError::WebauthnFailed);
-            }
         };
 
     let state = shared_state.read().await;
@@ -308,14 +286,13 @@ where
         let path = self.0.into();
 
         match Assets::get(path.as_str()) {
-            Some(content) => {
-                let body = boxed(Full::from(content.data));
-                let mime = mime_guess::from_path(path).first_or_octet_stream();
-                Response::builder()
-                    .header(header::CONTENT_TYPE, mime.as_ref())
-                    .body(body)
-                    .expect("could not build response")
-            }
+            Some(content) => Response::builder()
+                .header(
+                    header::CONTENT_TYPE,
+                    mime_guess::from_path(path).first_or_octet_stream().as_ref(),
+                )
+                .body(boxed(Full::from(content.data)))
+                .expect("could not build response"),
             None => Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(boxed(Full::from("404")))
@@ -359,9 +336,8 @@ pub async fn get_credentials_template_handler(
         return Redirect::temporary("/authenticate?redirect_url=/credentials").into_response();
     }
 
-    let username = match session.get::<String>(SESSIONKEY_USERNAME) {
-        Some(u) => u,
-        None => return AppError::BadSession.into_response(),
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+         return AppError::BadSession.into_response();
     };
 
     return match app.get_user_with_credentials(username).await {
@@ -424,12 +400,11 @@ pub async fn get_authenticate_template_handler(
         .status(StatusCode::UNAUTHORIZED)
         .body(boxed(Empty::new()))
         .expect("could not build response");
-    let authorization = match headers.get("Authorization") {
-        Some(a) => a,
-        None => return needs_basic_auth_response,
+    let Some(authorization) = headers.get("Authorization") else {
+         return needs_basic_auth_response;
     };
 
-    let (username, password) = match authorization
+    let Some((username, password)) = authorization
         .to_str()
         .ok()
         .and_then(|authorization_header| {
@@ -442,9 +417,8 @@ pub async fn get_authenticate_template_handler(
                             .map(|(u, p)| (String::from(u), String::from(p)))
                     })
                 })
-        }) {
-        Some(a) => a,
-        _ => return needs_basic_auth_response,
+        }) else {
+         return needs_basic_auth_response;
     };
 
     if passwords

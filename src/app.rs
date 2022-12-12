@@ -241,19 +241,15 @@ impl App {
         credential_name: String,
         credential: &Passkey,
     ) -> Result<(), AppError> {
-        let value = match serde_json::to_string(&credential) {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!("add_credential: {e}");
-                return Err(AppError::UnknownError);
-            }
+        let Ok(cred_val) = serde_json::to_string(&credential) else {
+            return Err(AppError::UnknownError);
         };
         self.db
             .call(|conn| {
                 conn.execute(
                     r#"insert into credentials (name, user, value)
                        values (?1, (select id from users where username = ?2), json(?3))"#,
-                    (credential_name, username, value),
+                    (credential_name, username, cred_val),
                 )?;
                 Ok::<_, AppError>(())
             })
