@@ -1,5 +1,5 @@
 {
-  description = "webauthn-tiny";
+  description = "A tiny webauthn server";
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
@@ -29,8 +29,9 @@
           }) shellHook;
         });
         ci = pkgs.mkShell {
-          inherit (pkgs.webauthn-tiny) RUSTFLAGS nativeBuildInputs;
-          buildInputs = with pkgs; [ cargo-edit just yarn nodejs esbuild ] ++ pkgs.webauthn-tiny.buildInputs;
+          inputsFrom = [ pkgs.webauthn-tiny ];
+          inherit (pkgs.webauthn-tiny) RUSTFLAGS;
+          buildInputs = with pkgs; [ cargo-edit just yarn nodejs esbuild ];
         };
       });
       packages = forAllSystems ({ pkgs, ... }: {
