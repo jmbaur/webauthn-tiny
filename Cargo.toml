@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.68"
 argon2 = "0.4.1"
-async-trait = "0.1.61"
-axum = "0.6.2"
+async-trait = "0.1.62"
+axum = "0.6.3"
 axum-macros = "0.3.1"
 axum-sessions = "0.4.1"
 base64 = "0.13.1"
@@ -23,7 +23,7 @@ rusqlite = "0.28.0"
 rust-embed = { version = "6.4.2", features = ["interpolate-folder-path"] }
 serde = "1.0.152"
 serde_json = "1.0.91"
-tokio = { version = "1.24.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.24.2", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
