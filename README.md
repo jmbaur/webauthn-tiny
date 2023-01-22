@@ -22,9 +22,9 @@ Options:
       --state-directory <STATE_DIRECTORY>
           Directory to store program state [env: STATE_DIRECTORY=] [default: /var/lib/webauthn-tiny]
   -h, --help
-          Print help information
+          Print help
   -V, --version
-          Print version information
+          Print version
 ```
 
 ## Password File

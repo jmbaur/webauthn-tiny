@@ -3,9 +3,9 @@
 
 
 "@github/webauthn-json@^2.0.1":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@github/webauthn-json/-/webauthn-json-2.0.2.tgz#82348dc225190fac5cb9a13b5bb71a570f791c5e"
-  integrity sha512-m5gJrn5BxbGLfTD1CcvNOD7PHE3WdVufPu9ia/z51Lp/mtWgaCxNjHbIMI6duC2UxwYaOkY0unwsNNBpce6lBw==
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/@github/webauthn-json/-/webauthn-json-2.1.0.tgz#e07d8085d6e4cdd2b16d24ade4d3d0c3dab40ae4"
+  integrity sha512-2+pz5+TDeaWWi1h0T3QlwUwmamhchuRVkQ5RxNYsMv5HrP2gdToAsGF+LeT66GhIRdDsVKk15AKNxTxdHHViyw==
 
 typescript@^4.8.4:
   version "4.9.4"
