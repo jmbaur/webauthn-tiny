@@ -3,7 +3,8 @@ name = "webauthn-tiny"
 version = "0.2.2"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+strip = true
 
 [dependencies]
 anyhow = "1.0.68"
