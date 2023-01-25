@@ -13,6 +13,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
+use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
 use metrics::increment_counter;
 use rust_embed::RustEmbed;
@@ -408,7 +409,7 @@ pub async fn get_authenticate_template_handler(
         .to_str()
         .ok()
         .and_then(|authorization_header| {
-            base64::decode(authorization_header.trim_start_matches("Basic "))
+            general_purpose::STANDARD.decode(authorization_header.trim_start_matches("Basic "))
                 .ok()
                 .and_then(|decoded_auth| {
                     String::from_utf8(decoded_auth).ok().and_then(|str_auth| {
