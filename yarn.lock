@@ -3,11 +3,11 @@
 
 
 "@github/webauthn-json@^2.0.1":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@github/webauthn-json/-/webauthn-json-2.1.0.tgz#e07d8085d6e4cdd2b16d24ade4d3d0c3dab40ae4"
-  integrity sha512-2+pz5+TDeaWWi1h0T3QlwUwmamhchuRVkQ5RxNYsMv5HrP2gdToAsGF+LeT66GhIRdDsVKk15AKNxTxdHHViyw==
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/@github/webauthn-json/-/webauthn-json-2.1.1.tgz#648e63fc28050917d2882cc2b27817a88cb420fc"
+  integrity sha512-XrftRn4z75SnaJOmZQbt7Mk+IIjqVHw+glDGOxuHwXkZBZh/MBoRS7MHjSZMDaLhT4RjN2VqiEU7EOYleuJWSQ==
 
 typescript@^4.8.4:
-  version "4.9.4"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.4.tgz#a2a3d2756c079abda241d75f149df9d561091e78"
-  integrity sha512-Uz+dTXYzxXXbsFpM86Wh3dKCxrQqUcVMxwU54orwlJjOpO3ao8L7j5lH+dWfTwgCwIuM9GQ2kvVotzYJMXTBZg==
+  version "4.9.5"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.9.5.tgz#095979f9bcc0d09da324d58d03ce8f8374cbe65a"
+  integrity sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==
