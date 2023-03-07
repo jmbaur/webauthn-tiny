@@ -1,4 +1,4 @@
-{ lib, crane, pkgsBuildHost, stdenv, qemu, pkgconfig, openssl, sqlite, ... }:
+{ lib, crane, pkgsBuildHost, stdenv, qemu, pkg-config, openssl, sqlite, ... }:
 let
   toEnvVar = s: lib.replaceStrings [ "-" ] [ "_" ] (lib.toUpper s);
   isCrossBuild = stdenv.hostPlatform.system != stdenv.buildPlatform.system;
@@ -16,7 +16,7 @@ in
   src = ./.;
   cargoToml = ./Cargo.toml;
   depsBuildBuild = lib.optional isCrossBuild qemu;
-  nativeBuildInputs = [ toolchain pkgconfig ];
+  nativeBuildInputs = [ toolchain pkg-config ];
   buildInputs = [ sqlite openssl ];
   ASSETS_DIRECTORY = toString (pkgsBuildHost.callPackage ./ui.nix { });
   passthru = { inherit env; };
