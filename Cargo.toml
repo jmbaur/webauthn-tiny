@@ -10,7 +10,7 @@ strip = true
 anyhow = "1.0.72"
 argon2 = "0.4.1"
 async-trait = "0.1.72"
-axum = "0.6.19"
+axum = "0.6.20"
 axum-macros = "0.3.8"
 axum-sessions = "0.4.1"
 base64 = "0.21.2"
@@ -22,7 +22,7 @@ metrics-exporter-prometheus = "0.11.0"
 mime_guess = "2.0.4"
 rusqlite = "0.28.0"
 rust-embed = { version = "6.8.1", features = ["interpolate-folder-path"] }
-serde = "1.0.178"
+serde = "1.0.181"
 serde_json = "1.0.104"
 tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
