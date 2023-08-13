@@ -9,12 +9,12 @@ strip = true
 [dependencies]
 anyhow = "1.0.72"
 argon2 = "0.4.1"
-async-trait = "0.1.72"
+async-trait = "0.1.73"
 axum = "0.6.20"
 axum-macros = "0.3.8"
 axum-sessions = "0.4.1"
 base64 = "0.21.2"
-clap = { version = "4.3.19", features = ["std", "derive", "env"] }
+clap = { version = "4.3.21", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
 liquid = "0.26.4"
 metrics = "0.20.1"
@@ -22,9 +22,9 @@ metrics-exporter-prometheus = "0.11.0"
 mime_guess = "2.0.4"
 rusqlite = "0.28.0"
 rust-embed = { version = "6.8.1", features = ["interpolate-folder-path"] }
-serde = "1.0.181"
+serde = "1.0.183"
 serde_json = "1.0.104"
-tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.31.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
