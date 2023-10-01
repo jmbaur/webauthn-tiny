@@ -14,7 +14,7 @@ axum = "0.6.20"
 axum-macros = "0.3.8"
 axum-sessions = "0.4.1"
 base64 = "0.21.4"
-clap = { version = "4.4.4", features = ["std", "derive", "env"] }
+clap = { version = "4.4.6", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
 liquid = "0.26.4"
 metrics = "0.20.1"
