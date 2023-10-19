@@ -1,10 +1,11 @@
-{ nixosTest, inputs, ... }:
+{ nixosTest, package, ... }:
 nixosTest {
   name = "webauthn-tiny";
   nodes.machine = {
-    imports = [ inputs.self.nixosModules.default ];
+    imports = [ ./module.nix ];
     config.services.webauthn-tiny = {
       enable = true;
+      inherit package;
       basicAuth = { user = "password"; };
       relyingParty.id = "foo_rp.com";
       relyingParty.origin = "https://foo_rp.com";

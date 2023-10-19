@@ -1,10 +1,8 @@
-# vim: ft=make
-
 export ASSETS_DIRECTORY := env_var("out")
 export WEBAUTHN_TINY_LOG := "debug"
 
 help:
-	@just --list
+	just --list
 
 # remove nix derivations and cargo/yarn outputs
 clean:
@@ -26,7 +24,6 @@ update_usage: build
 
 update: deps update_usage
 	cargo update
-	cargo upgrade
 	yarn upgrade
 
 deps:
