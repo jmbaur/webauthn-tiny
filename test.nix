@@ -6,7 +6,9 @@ nixosTest {
     config.services.webauthn-tiny = {
       enable = true;
       inherit package;
-      basicAuth = { user = "password"; };
+      basicAuth = {
+        user = "password";
+      };
       relyingParty.id = "foo_rp.com";
       relyingParty.origin = "https://foo_rp.com";
     };

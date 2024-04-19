@@ -1,20 +1,34 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.services.webauthn-tiny;
-  passwordFile = if (cfg.basicAuthFile != null) then cfg.basicAuthFile else
-  (pkgs.runCommand "generated-password-file" { } (''
-    touch $out
-    salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
-  '' + (concatStringsSep ";"
-    (mapAttrsToList
-      (username: password: ''
-        echo ${username}:$(printf "${password}" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
-      '')
-      cfg.basicAuth))
-  ));
-  sessionSecretFile = if (cfg.sessionSecretFile != null) then cfg.sessionSecretFile else
-  (pkgs.runCommand "generated-session-secret-file" { } "${pkgs.openssl}/bin/openssl rand -hex 64 > $out");
+  passwordFile =
+    if (cfg.basicAuthFile != null) then
+      cfg.basicAuthFile
+    else
+      (pkgs.runCommand "generated-password-file" { } (
+        ''
+          touch $out
+          salt=$(${pkgs.openssl}/bin/openssl rand -hex 16)
+        ''
+        + (concatStringsSep ";" (
+          mapAttrsToList (username: password: ''
+            echo ${username}:$(printf "${password}" | ${pkgs.libargon2}/bin/argon2 $salt -id -e) >> $out
+          '') cfg.basicAuth
+        ))
+      ));
+  sessionSecretFile =
+    if (cfg.sessionSecretFile != null) then
+      cfg.sessionSecretFile
+    else
+      (pkgs.runCommand "generated-session-secret-file" { }
+        "${pkgs.openssl}/bin/openssl rand -hex 64 > $out"
+      );
 in
 {
   options = {
@@ -28,7 +42,9 @@ in
           for testing purposes.
         '';
         default = { };
-        example = { myuser = "mypassword"; };
+        example = {
+          myuser = "mypassword";
+        };
       };
       basicAuthFile = mkOption {
         type = types.nullOr types.path;
@@ -106,8 +122,8 @@ in
   config = mkIf cfg.enable {
     services.nginx = mkIf cfg.nginx.enable {
       enable = true;
-      virtualHosts = genAttrs cfg.nginx.protectedVirtualHosts
-        (_: {
+      virtualHosts =
+        genAttrs cfg.nginx.protectedVirtualHosts (_: {
           extraConfig = ''
             auth_request /auth;
             error_page 401 = @error401;
@@ -123,19 +139,20 @@ in
             '';
           };
           locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
-        }) // {
-        ${cfg.nginx.virtualHost} = {
-          inherit (cfg.nginx) enableACME useACMEHost;
-          forceSSL = true; # webauthn is only available over HTTPS
-          locations."/" = {
-            proxyPass = "http://[::1]:8080";
-            extraConfig = ''
-              proxy_set_header Host            $host;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            '';
+        })
+        // {
+          ${cfg.nginx.virtualHost} = {
+            inherit (cfg.nginx) enableACME useACMEHost;
+            forceSSL = true; # webauthn is only available over HTTPS
+            locations."/" = {
+              proxyPass = "http://[::1]:8080";
+              extraConfig = ''
+                proxy_set_header Host            $host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              '';
+            };
           };
         };
-      };
     };
 
     systemd.services.webauthn-tiny = {
@@ -144,16 +161,20 @@ in
       environment.WEBAUTHN_TINY_LOG = "info";
       serviceConfig = {
         StateDirectory = "webauthn-tiny";
-        LoadCredential = [ "password-file:${passwordFile}" "session-secret-file:${sessionSecretFile}" ];
-        ExecStart =
-          escapeShellArgs ([
+        LoadCredential = [
+          "password-file:${passwordFile}"
+          "session-secret-file:${sessionSecretFile}"
+        ];
+        ExecStart = escapeShellArgs (
+          [
             "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
             "--rp-id=${cfg.relyingParty.id}"
             "--rp-origin=${cfg.relyingParty.origin}"
             "--password-file=\${CREDENTIALS_DIRECTORY}/password-file"
             "--session-secret-file=\${CREDENTIALS_DIRECTORY}/session-secret-file"
-          ] ++ (map (origin: "--extra-allowed-origin=${origin}") cfg.relyingParty.extraAllowedOrigins)
-          );
+          ]
+          ++ (map (origin: "--extra-allowed-origin=${origin}") cfg.relyingParty.extraAllowedOrigins)
+        );
         CapabilityBoundingSet = [ ];
         DeviceAllow = [ ];
         DynamicUser = true;
@@ -170,7 +191,10 @@ in
         ProtectKernelTunables = true;
         ProtectSystem = "strict";
         RemoveIPC = true;
-        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+        ];
         RestrictNamespaces = true;
         RestrictRealtime = true;
         RestrictSUIDSGID = true;

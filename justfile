@@ -33,7 +33,7 @@ build: build-ui
 	cargo build
 
 build-ui: deps
-	yarn build --outdir=$out
+	yarn run --offline build --outdir=$out
 
 check: build-ui
 	cargo check
