@@ -54,6 +54,7 @@
             pkgs.webauthn-tiny
             pkgs.webauthn-tiny.ui
           ];
+          packages = [ pkgs.just ];
         };
       }) self.legacyPackages;
     };
