@@ -35,12 +35,6 @@ build: build-ui
 build-ui: deps
 	yarn run --offline build --outdir=$out
 
-check: build-ui
-	cargo check
-	cargo test
-
-ci: deps check
-
 run: build-ui
 	#!/usr/bin/env bash
 	state_directory="{{justfile_directory()}}/state"
