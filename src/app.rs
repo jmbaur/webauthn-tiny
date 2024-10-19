@@ -31,6 +31,7 @@ pub enum AppError {
     BadSession,
     WebauthnFailed,
     UnknownError,
+    NoUserCredentials,
 }
 
 impl Display for AppError {
@@ -83,6 +84,7 @@ impl From<AppError> for StatusCode {
             AppError::BadInput => StatusCode::BAD_REQUEST,
             AppError::UserNotFound => StatusCode::NOT_FOUND,
             AppError::CredentialNotFound => StatusCode::NOT_FOUND,
+            AppError::NoUserCredentials => StatusCode::NO_CONTENT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

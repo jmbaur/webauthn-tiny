@@ -5,7 +5,7 @@ help:
 
 # remove nix derivations and cargo outputs
 clean:
-	rm -rf $out/* result* {{justfile_directory()}}/state
+	rm -rf result* {{justfile_directory()}}/state
 	cargo clean
 
 # update README with usage string from cli's `--help` output
