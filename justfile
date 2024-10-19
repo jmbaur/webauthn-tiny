@@ -5,7 +5,7 @@ help:
 
 # remove nix derivations and cargo outputs
 clean:
-	rm -rf $out/* result*
+	rm -rf $out/* result* {{justfile_directory()}}/state
 	cargo clean
 
 # update README with usage string from cli's `--help` output
@@ -28,17 +28,10 @@ update: update_usage
 
 run:
 	#!/usr/bin/env bash
-	state_directory="{{justfile_directory()}}/state"
-	mkdir -p $state_directory
-	password_file=$state_directory/passwords
+	export STATE_DIRECTORY={{justfile_directory()}}/state
+	mkdir -p $STATE_DIRECTORY
+	password_file=$STATE_DIRECTORY/passwords
 	[[ -f $password_file ]] || echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e) > $password_file
-	session_secret_file=$state_directory/session_secret
+	session_secret_file=$STATE_DIRECTORY/session_secret
 	[[ -f $session_secret_file ]] || openssl rand -hex 64 > $session_secret_file
-	function arg() { printf "%s " $1; }
-	args=()
-	args+=$(arg "--rp-id=localhost")
-	args+=$(arg "--rp-origin=http://localhost:8080")
-	args+=$(arg "--state-directory=$state_directory")
-	args+=$(arg "--password-file=$password_file")
-	args+=$(arg "--session-secret-file=$session_secret_file")
-	cargo watch --exec "run -- ${args[@]}"
+	cargo watch --exec "run -- --rp-id=localhost --rp-origin=http://localhost:8080 --password-file=$password_file --session-secret-file=$session_secret_file"
