@@ -1,13 +1,11 @@
-export ASSETS_DIRECTORY := env_var("out")
 export WEBAUTHN_TINY_LOG := "debug"
 
 help:
 	just --list
 
-# remove nix derivations and cargo/yarn outputs
+# remove nix derivations and cargo outputs
 clean:
 	rm -rf $out/* result*
-	rm -rf node_modules
 	cargo clean
 
 # update README with usage string from cli's `--help` output
@@ -22,20 +20,13 @@ update_usage: build
 	sed -i "${lines[0]},${lines[1]} d" README.md
 	sed -i "$(("${lines[0]}" - 1)) r $tmpfile" README.md
 
-update: deps update_usage
-	cargo update
-	yarn upgrade
-
-deps:
-	yarn install
-
-build: build-ui
+build:
 	cargo build
 
-build-ui: deps
-	yarn run --offline build --outdir=$out
+update: update_usage
+	cargo update
 
-run: build-ui
+run:
 	#!/usr/bin/env bash
 	state_directory="{{justfile_directory()}}/state"
 	mkdir -p $state_directory

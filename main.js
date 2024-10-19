@@ -3,10 +3,10 @@ import {
   get,
   parseCreationOptionsFromJSON,
   parseRequestOptionsFromJSON,
-} from "@github/webauthn-json/browser-ponyfill";
+} from "https://cdn.jsdelivr.net/npm/@github/webauthn-json@2.1.1/browser-ponyfill/+esm";
 document.addEventListener("DOMContentLoaded", () => {
   for (const button of document.getElementsByClassName("delete-credential")) {
-    button.addEventListener("click", async function (_: Event) {
+    button.addEventListener("click", async function (_) {
       const cred_id = button.getAttribute("value");
       if (cred_id && window.confirm("Do you want to delete this credential?")) {
         const response = await fetch(`/api/credentials/${cred_id}`, {
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   const addButton = document.getElementById("add-credential");
   if (addButton != null) {
-    addButton.addEventListener("click", async function (_: Event) {
+    addButton.addEventListener("click", async function (_) {
       const newCredential = window.prompt("Enter name for the new credential");
       if (newCredential === null) return;
       else if (newCredential === "") {

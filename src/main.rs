@@ -104,7 +104,7 @@ async fn main() -> anyhow::Result<()> {
     .with_persistence_policy(PersistencePolicy::ChangedOnly)
     .with_cookie_domain(&cli.rp_id);
 
-    let app = App::new(db, cli.rp_id, cli.rp_origin);
+    let app = App::new(db);
     app.init().await?;
 
     let parser = liquid::ParserBuilder::with_stdlib().build()?;

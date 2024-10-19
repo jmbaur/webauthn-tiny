@@ -16,7 +16,6 @@ use axum_sessions::extractors::{ReadableSession, WritableSession};
 use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
 use metrics::increment_counter;
-use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -284,41 +283,19 @@ pub async fn delete_credentials_api_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(RustEmbed)]
-#[folder = "$ASSETS_DIRECTORY"]
-pub struct Assets;
-
-pub struct AssetFile<T>(pub T);
-
-impl<T> IntoResponse for AssetFile<T>
-where
-    T: Into<String>,
-{
-    fn into_response(self) -> Response {
-        let path = self.0.into();
-
-        match Assets::get(path.as_str()) {
-            Some(content) => Response::builder()
-                .header(
-                    header::CONTENT_TYPE,
-                    mime_guess::from_path(path).first_or_octet_stream().as_ref(),
-                )
-                .body(boxed(Full::from(content.data)))
-                .expect("could not build response"),
-            None => Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(boxed(Full::from("404")))
-                .expect("could not build response"),
-        }
-    }
-}
+const MAIN_JS: &str = include_str!("../main.js");
 
 pub async fn root_handler(uri: Uri) -> Response {
-    let path = uri.path().to_string();
-    if path == "/" {
-        Redirect::permanent("/credentials").into_response()
-    } else {
-        AssetFile(path.trim_start_matches('/')).into_response()
+    match uri.path() {
+        "/" => Redirect::permanent("/credentials").into_response(),
+        "/main.js" => Response::builder()
+            .header(header::CONTENT_TYPE, "text/javascript")
+            .body(boxed(MAIN_JS.to_string()))
+            .expect("could not build response"),
+        _ => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(boxed(Full::from("404")))
+            .expect("could not build response"),
     }
 }
 
@@ -492,7 +469,8 @@ const TOP_HTML: &str = r#"
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABp1BMVEUAAAC7ZEnAaE3BaE3AaE7AaE7AZ07AZ07AaEuqVVXAZ03AaU7AaE7BaE7AaE7AZ06/X0+iubmouMCotcKot7+jtr+qVQDAaE3BZ06ZZjO/aE3DaUv///+pt8Cpt8KquMGpt8Gpt8KqtsHAaVDBZ07DaUvAZ06ptsKpuMHAa1LAaE7BaEzAZUyotsHBaE3AaU3AaE7AaE6puMGpt8Kpt8Cotb6qtsCpuMKpuMHAaE7/AACpt7+puMKls8Glsr+/b1bJXUOpt8GquMGotsDBaE7CYUiqtL+otsHAaE3/fwCntsGotcHBZ02/aE2qtsKqt8DEYk7AaE7AZ0vAZ06pqbPAaE7/qjHzrEb4qzr/qjL8rDbBaE67ZkT/qi//qzLAZ03BZUr+rDLBaE7+qzLBaE7AaE3BaU7BaE7BaE+/Z0zAaE3AaU/BZkzBaE3AaE7+rDLAaE3+rDK/aE3+qy7/rDLAaE7+rDH9qTPGbUvBaE7AaE7EaE7BaU+quMKsrrS0kIi6e2q4gnTqrlTrrlPrrVHdiEHCak7/rDP1oTbPeUfchkLljz3///9akrvWAAAAfHRSTlMAJo7S9fndoD0Dh/rk1/6sEBZBUEQcA6uzBYERAVbF/f7PY4JbIrMVu/6ja0nYy7v9sLz7pDtRmPbwAVnnNijxE8r6NdsVGKLyAkZTebJUORr2Snsb0CSx0sXLqQ8w8eI6vMb4w3Pk4/uFxfVX7zH8wdG1Uv3E0tuz980nD8+cyQAAAAFiS0dEHJwEQQcAAAFGSURBVDjLpZBlUwMxEIYXisvhTqG4U9zd3Z1Ci7u2eIIVOORPk9wlQHp0MgPvl53Z55ndZAGM8fE1+fkHBAbB7wkOCUUoLFxBSkSkAKKiY2LjAOITEEKJSZBMiinli6aa09IxxpaMzCwCUDZADq25nOflY5bbAgoKAYpoVYrZ9BLO8R3SUmot02q5Pr+CkMoqc3VNbd09ElLfQIVGwpuaNbelVRSUNtptx7ijk72mSxRQN+n1WDDu5c+1iryvn/QGyIZBLgyJwjDtjRBhlAtj44IwYRBg8ifXDyUKUw/ffFo79czso9s9N8+z8PT8wr64aKN8aVn1zOsb5XaHPnJFNeadCqts55pMUP8srEsEZUMibIJE2JIJ2zv//sWuRNjblwgHh0w48rbimAkn3oRTJjhdRuGD8DMbP4Tz3HOL6+Ly6vqG4U+ir1fMK9R+pgAAAABJRU5ErkJggg==">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/marx/4.0.0/marx.min.css" integrity="sha512-V5Fw0QHYJ0uPbjTkWz2m6ZN9n9KnCvzri7llIykqvovZokB02KSyRR7PoFJ+UazX6y+87LaVkrPWKhAsr7qYDg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/marx-css@4.1.1/css/marx.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script type="module" src="/main.js" defer></script>
   <title>WebAuthnTiny</title>
 </head>
 <html>
@@ -500,7 +478,6 @@ const TOP_HTML: &str = r#"
 "#;
 
 const BOTTOM_HTML: &str = r#"
-<script src="/main.js"></script>
 </body>
 </html>
 "#;

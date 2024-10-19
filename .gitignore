@@ -1,6 +1,5 @@
 .direnv
 .pre-commit-config.yaml
-node_modules
 outputs
 result*
 state

@@ -49,10 +49,7 @@
             ;
         });
         ci = pkgs.mkShell {
-          inputsFrom = [
-            pkgs.webauthn-tiny
-            pkgs.webauthn-tiny.ui
-          ];
+          inputsFrom = [ pkgs.webauthn-tiny ];
           packages = [ pkgs.just ];
         };
       }) self.legacyPackages;

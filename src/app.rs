@@ -114,8 +114,6 @@ impl From<uuid::Error> for AppError {
 }
 
 pub struct App {
-    pub id: String,
-    pub origin: String,
     db: Connection,
 }
 
@@ -141,8 +139,8 @@ impl UserWithCredentials {
 }
 
 impl App {
-    pub fn new(db: Connection, id: String, origin: String) -> Self {
-        Self { db, id, origin }
+    pub fn new(db: Connection) -> Self {
+        Self { db }
     }
 
     pub async fn init(&self) -> Result<(), AppError> {
@@ -313,11 +311,7 @@ mod tests {
 
     async fn get_app_with_db() -> App {
         let db = Connection::open(":memory:").await.unwrap();
-        let app = App::new(
-            db,
-            "example.com".to_string(),
-            "https://example.com".to_string(),
-        );
+        let app = App::new(db);
         app.init().await.unwrap();
         app
     }

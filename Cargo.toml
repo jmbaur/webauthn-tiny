@@ -7,30 +7,28 @@ edition = "2021"
 strip = true
 
 [dependencies]
-anyhow = "1.0.75"
+anyhow = "1.0.90"
 argon2 = "0.4.1"
-async-trait = "0.1.73"
+async-trait = "0.1.83"
 axum = "0.6.20"
 axum-macros = "0.3.8"
 axum-sessions = "0.4.1"
-base64 = "0.21.4"
-clap = { version = "4.4.6", features = ["std", "derive", "env"] }
+base64 = "0.22"
+clap = { version = "4.5.20", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25.2"
-liquid = "0.26.4"
+liquid = "0.26.9"
 metrics = "0.20.1"
 metrics-exporter-prometheus = "0.11.0"
-mime_guess = "2.0.4"
 rusqlite = "0.28.0"
-rust-embed = { version = "6.8.1", features = ["interpolate-folder-path"] }
-serde = "1.0.189"
-serde_json = "1.0.107"
-tokio = { version = "1.33.0", features = ["macros", "rt-multi-thread"] }
+serde = "1.0.210"
+serde_json = "1.0.132"
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread"] }
 tokio-rusqlite = "0.3.0"
 tower = { version = "0.4.13", features = ["tracing"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
-tracing = "0.1.39"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-uuid = "1.4.1"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+uuid = "1.11.0"
 webauthn-authenticator-rs = "0.4.9"
 webauthn-rs = { version = "0.4.8", features = [
   "danger-allow-state-serialisation",
