@@ -283,7 +283,7 @@ pub async fn delete_credentials_api_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-const MAIN_JS: &str = include_str!("../main.js");
+const MAIN_JS: &str = include_str!("./main.js");
 
 pub async fn root_handler(uri: Uri) -> Response {
     match uri.path() {
