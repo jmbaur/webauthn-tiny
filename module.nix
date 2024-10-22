@@ -90,6 +90,23 @@ in
           example = [ "https://subdomain.mywebsite.com" ];
         };
       };
+      caddy = {
+        enable = mkEnableOption "caddy support";
+        virtualHost = mkOption {
+          type = types.str;
+          description = ''
+            The virtual host that this service will serve on.
+          '';
+        };
+        protectedVirtualHosts = mkOption {
+          type = types.listOf types.str;
+          description = ''
+            A list of virtual hosts that will be protected by this webauthn
+            server. This uses caddy's forward_auth functionality.
+          '';
+          default = [ ];
+        };
+      };
       nginx = {
         enable = mkEnableOption "nginx support";
         virtualHost = mkOption {
@@ -120,10 +137,26 @@ in
     };
   };
   config = mkIf cfg.enable {
-    services.nginx = mkIf cfg.nginx.enable {
-      enable = true;
-      virtualHosts =
-        genAttrs cfg.nginx.protectedVirtualHosts (_: {
+    services.caddy.virtualHosts = mkIf cfg.caddy.enable (
+      lib.mkMerge [
+        (genAttrs cfg.nginx.protectedVirtualHosts (_: {
+          extraConfig = ''
+            forward_auth [::1]:8080 {
+              uri /api/validate
+            }
+          '';
+        }))
+        {
+          ${cfg.caddy.virtualHost}.extraConfig = ''
+            reverse_proxy [::1]:8080
+          '';
+        }
+      ]
+    );
+
+    services.nginx.virtualHosts = mkIf cfg.nginx.enable (
+      lib.mkMerge [
+        (genAttrs cfg.nginx.protectedVirtualHosts (_: {
           extraConfig = ''
             auth_request /auth;
             error_page 401 = @error401;
@@ -139,8 +172,8 @@ in
             '';
           };
           locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
-        })
-        // {
+        }))
+        {
           ${cfg.nginx.virtualHost} = {
             inherit (cfg.nginx) enableACME useACMEHost;
             forceSSL = true; # webauthn is only available over HTTPS
@@ -152,8 +185,9 @@ in
               '';
             };
           };
-        };
-    };
+        }
+      ]
+    );
 
     systemd.services.webauthn-tiny = {
       enable = true;
