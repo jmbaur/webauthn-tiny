@@ -9,7 +9,7 @@ clean:
 	cargo clean
 
 # update README with usage string from cli's `--help` output
-update_usage: build
+update_usage:
 	#!/usr/bin/env bash
 	set -e
 	readarray -t lines <<<"$(grep -n '```' README.md | cut -d':' -f1)"

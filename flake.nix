@@ -31,9 +31,11 @@
             }
           );
       devShells = nixpkgs.lib.mapAttrs (system: pkgs: {
-        default = self.devShells.${system}.ci.overrideAttrs (old: {
-          buildInputs = old.buildInputs ++ [
+        default = pkgs.mkShell {
+          inputsFrom = [ pkgs.webauthn-tiny ];
+          packages = [
             pkgs.cargo-watch
+            pkgs.just
             pkgs.libargon2
           ];
           inherit
@@ -47,10 +49,6 @@
             })
             shellHook
             ;
-        });
-        ci = pkgs.mkShell {
-          inputsFrom = [ pkgs.webauthn-tiny ];
-          packages = [ pkgs.just ];
         };
       }) self.legacyPackages;
     };
