@@ -41,13 +41,10 @@ where
     type Rejection = Infallible;
     async fn from_request_parts(parts: &mut Parts, state: &B) -> Result<Self, Self::Rejection> {
         tracing::trace!("LoggedIn extractor");
-        if let Ok(session) = ReadableSession::from_request_parts(parts, state).await {
-            Ok(LoggedIn(
-                session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
-            ))
-        } else {
-            Ok(LoggedIn(false))
-        }
+        let session = ReadableSession::from_request_parts(parts, state).await?;
+        Ok(LoggedIn(
+            session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
+        ))
     }
 }
 
