@@ -1,11 +1,9 @@
-use crate::app::{self, AppError};
-use app::SharedAppState;
-use argon2::PasswordVerifier;
-use argon2::{password_hash::PasswordHash, Argon2};
+use crate::app::{AppError, SharedAppState};
+use argon2::{password_hash::PasswordHash, Argon2, PasswordVerifier};
 use async_trait::async_trait;
 use axum::{
     body::{boxed, Empty, Full},
-    extract::{self, FromRequestParts, Path, Query},
+    extract::{self, ConnectInfo, FromRequestParts, Path, Query},
     http::{header, request::Parts, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
@@ -17,8 +15,12 @@ use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
-use std::{collections::HashMap, convert::Infallible, sync::Arc};
+use std::{
+    collections::HashMap,
+    convert::Infallible,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
@@ -62,19 +64,30 @@ pub async fn require_logged_in<B>(
     }
 }
 
-/// Middleware that only allows connections from a loopback address. This checks the client address
-/// from the X-Forwarded-For header to determine if the request is coming from a local client.
-/// NOTE: This assumes the server is running behind a reverse proxy (and is only safe if it this is
-/// the case).
-pub async fn allow_only_localhost<B>(req: Request<B>, next: Next<B>) -> Response {
+/// Middleware that only allows connections from a loopback address. This first checks the client
+/// address from the X-Forwarded-For header to determine if the request is coming from a local
+/// client. If X-Forwarded-For is not present (i.e. the request is not coming from a proxy), then
+/// the direct connection info is used.
+pub async fn allow_only_localhost<B>(
+    connect_info: ConnectInfo<SocketAddr>,
+    req: Request<B>,
+    next: Next<B>,
+) -> Response {
     if req
         .headers()
         .get("x-forwarded-for")
-        .and_then(|s| s.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        .filter(|ip| ip.is_loopback())
-        .is_some()
+        .and_then(|x_forwarded_for| {
+            Some(
+                x_forwarded_for
+                    .to_str()
+                    .ok()
+                    .and_then(|s| s.split(',').next())
+                    .and_then(|s| s.trim().parse::<IpAddr>().ok())
+                    .filter(|ip| ip.to_canonical().is_loopback())
+                    .is_some(),
+            )
+        })
+        .unwrap_or_else(|| connect_info.ip().to_canonical().is_loopback())
     {
         next.run(req).await
     } else {
