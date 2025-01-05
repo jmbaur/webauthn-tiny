@@ -15,7 +15,7 @@ use axum_macros::debug_handler;
 use axum_sessions::extractors::{ReadableSession, WritableSession};
 use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
-use metrics::increment_counter;
+use metrics::counter;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -54,26 +54,25 @@ pub async fn require_logged_in<B>(
     next: Next<B>,
 ) -> Response {
     if logged_in {
-        increment_counter!("authorized_requests");
+        counter!("authorized_requests").increment(1);
         next.run(req).await
     } else {
-        increment_counter!("unauthorized_requests");
+        counter!("unauthorized_requests").increment(1);
         StatusCode::UNAUTHORIZED.into_response()
     }
 }
 
-/// Middleware that only allows connections from a loopback address. NOTE: This assumes the server
-/// is running behind a reverse proxy (and is only safe if it this is the case).
+/// Middleware that only allows connections from a loopback address. This checks the client address
+/// from the X-Forwarded-For header to determine if the request is coming from a local client.
+/// NOTE: This assumes the server is running behind a reverse proxy (and is only safe if it this is
+/// the case).
 pub async fn allow_only_localhost<B>(req: Request<B>, next: Next<B>) -> Response {
     if req
         .headers()
         .get("x-forwarded-for")
         .and_then(|s| s.to_str().ok())
-        .and_then(|s| {
-            s.split(',')
-                .last()
-                .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        })
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.trim().parse::<IpAddr>().ok())
         .filter(|ip| ip.is_loopback())
         .is_some()
     {
@@ -153,7 +152,7 @@ pub async fn register_end_handler(
 
     let Ok(passkey) = webauthn.finish_passkey_registration(&payload.credential, &passkey_reg)
     else {
-        increment_counter!("failed_webauthn_registrations");
+        counter!("failed_registrations").increment(1);
         session.remove(SESSIONKEY_PASSKEYREGISTRATION);
         return Err(AppError::WebauthnFailed);
     };
@@ -174,7 +173,7 @@ pub async fn register_end_handler(
 
     session.remove(SESSIONKEY_PASSKEYREGISTRATION);
 
-    increment_counter!("successful_webauthn_registrations");
+    counter!("successful_registrations").increment(1);
 
     Ok(())
 }
@@ -213,7 +212,7 @@ pub async fn authenticate_start_handler(
         .collect();
 
     let Ok((req_chal, passkey_auth)) = webauthn.start_passkey_authentication(&passkeys) else {
-        increment_counter!("failed_webauthn_authentications");
+        counter!("failed_authentications").increment(1);
         return Err(AppError::WebauthnFailed);
     };
 
@@ -243,7 +242,7 @@ pub async fn authenticate_end_handler(
     let Ok(auth_result) =
         webauthn.finish_passkey_authentication(&payload.0, &passkey_authentication)
     else {
-        increment_counter!("failed_webauthn_authentications");
+        counter!("failed_authentications").increment(1);
         return Err(AppError::WebauthnFailed);
     };
 
@@ -258,7 +257,7 @@ pub async fn authenticate_end_handler(
         return Err(AppError::BadSession);
     }
 
-    increment_counter!("successful_webauthn_authentications");
+    counter!("successful_authentications").increment(1);
 
     Ok(())
 }

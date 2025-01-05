@@ -16,7 +16,7 @@ use handlers::{
     get_credentials_template_handler, register_end_handler, register_start_handler,
     require_logged_in, root_handler, Templates,
 };
-use metrics::register_counter;
+use metrics::counter;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::{collections::HashMap, env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
@@ -76,12 +76,13 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let prometheus_handle = PrometheusBuilder::new().install_recorder()?;
-    register_counter!("successful_webauthn_registrations");
-    register_counter!("failed_webauthn_registrations");
-    register_counter!("successful_webauthn_authentications");
-    register_counter!("failed_webauthn_authentications");
-    register_counter!("authorized_requests");
-    register_counter!("unauthorized_requests");
+
+    counter!("successful_registrations").absolute(0);
+    counter!("failed_registrations").absolute(0);
+    counter!("successful_authentications").absolute(0);
+    counter!("failed_authentications").absolute(0);
+    counter!("authorized_requests").absolute(0);
+    counter!("unauthorized_requests").absolute(0);
 
     let cli = Cli::parse();
     let origin_url = Url::parse(&cli.rp_origin)?;
