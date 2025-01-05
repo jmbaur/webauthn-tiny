@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
-use webauthn_rs::prelude::{AuthenticationResult, Passkey, Uuid};
+use webauthn_rs::prelude::{AuthenticationResult, CredentialID, Passkey, Uuid};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CredentialState {
@@ -244,16 +244,25 @@ impl App {
         let Ok(cred_val) = serde_json::to_string(&credential) else {
             return Err(AppError::UnknownError);
         };
-        self.db
+
+        let n_added = self
+            .db
             .call(|conn| {
-                conn.execute(
+                let count = conn.execute(
                     r#"insert into credentials (name, user, value)
                        values (?1, (select id from users where username = ?2), json(?3))"#,
                     (credential_name, username, cred_val),
                 )?;
-                Ok::<_, AppError>(())
+
+                Ok::<usize, AppError>(count)
             })
-            .await
+            .await?;
+
+        if n_added != 1 {
+            Err(AppError::UserNotFound)
+        } else {
+            Ok::<_, AppError>(())
+        }
     }
 
     pub async fn update_credential(
@@ -262,11 +271,12 @@ impl App {
     ) -> Result<(), AppError> {
         self.db
             .call(move |conn| {
-                let cred_id = auth_result.cred_id().to_string();
+                let cred_id = serde_json::to_string(auth_result.cred_id())?;
+
                 let cred_json: String = conn.query_row(
                     r#"select value from credentials
-                       where value->>'$.cred.cred_id' = ?1"#,
-                    (auth_result.cred_id().to_string(),),
+                       where value->'$.cred.cred_id' = ?1"#,
+                    (&cred_id,),
                     |row| row.get(0),
                 )?;
 
@@ -278,8 +288,8 @@ impl App {
                 let cred_json = serde_json::to_string(&credential)?;
                 conn.execute(
                     r#"update credentials set value = ?1
-                       where value->>'$.cred.cred_id' = ?2"#,
-                    (cred_json, cred_id),
+                       where value->'$.cred.cred_id' = ?2"#,
+                    (cred_json, &cred_id),
                 )?;
 
                 Ok::<_, AppError>(())
@@ -287,25 +297,31 @@ impl App {
             .await
     }
 
-    pub async fn delete_credential(&self, cred_id: String) -> Result<(), AppError> {
-        self.db
+    pub async fn delete_credential(&self, cred_id: CredentialID) -> Result<(), AppError> {
+        let cred_id = serde_json::to_string(&cred_id)?;
+
+        let n_deleted = self
+            .db
             .call(move |conn| {
-                let count = conn.execute(
-                    r#"delete from credentials where value->>'$.cred.cred_id' = ?1"#,
-                    (cred_id,),
-                )?;
-                if count != 1 {
-                    Err(AppError::CredentialNotFound)
-                } else {
-                    Ok::<_, AppError>(())
-                }
+                conn.execute(
+                    r#"delete from credentials where value->'$.cred.cred_id' = ?1"#,
+                    (&cred_id,),
+                )
             })
-            .await
+            .await?;
+
+        if n_deleted != 1 {
+            Err(AppError::CredentialNotFound)
+        } else {
+            Ok::<_, AppError>(())
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use tokio_rusqlite::Connection;
     use webauthn_authenticator_rs::{prelude::Url, softtoken::SoftToken, WebauthnAuthenticator};
@@ -350,13 +366,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_credential_lifecycle() {
-        let (soft_token, _) = SoftToken::new().unwrap();
+        let (soft_token, _) = SoftToken::new(true).unwrap();
 
         let wan = WebauthnCore::new_unsafe_experts_only(
             "https://localhost:8080/auth",
             "localhost",
             vec![Url::parse("https://localhost:8080").unwrap()],
-            None,
+            Duration::from_secs(1),
             None,
             None,
         );
@@ -372,10 +388,12 @@ mod tests {
 
         let (chal, reg_state) = wan
             .generate_challenge_register(
-                &user.id.into_bytes(),
-                &user.username,
-                &user.username,
-                false,
+                wan.new_challenge_register_builder(
+                    &user.id.into_bytes(),
+                    &user.username,
+                    &user.username,
+                )
+                .unwrap(),
             )
             .unwrap();
 
@@ -402,9 +420,7 @@ mod tests {
         // TODO(jared): test this
         // app.update_credential();
 
-        app.delete_credential(cred.cred_id.to_string())
-            .await
-            .unwrap();
+        app.delete_credential(cred.cred_id).await.unwrap();
 
         let user = app
             .get_user_with_credentials("bar_user".to_string())

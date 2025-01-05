@@ -98,7 +98,7 @@ pub async fn register_start_handler(
     let app = shared_state.read().await;
     let user = app.get_user_with_credentials(username).await?;
 
-    let existing_credentials: Vec<Base64UrlSafeData> = user
+    let existing_credentials: Vec<CredentialID> = user
         .credentials
         .iter()
         .map(|c| c.credential.cred_id().to_owned())
@@ -270,7 +270,7 @@ pub struct GetCredentialsResponsePayload {
 
 #[debug_handler]
 pub async fn delete_credentials_api_handler(
-    Path(cred_id): Path<String>,
+    Path(cred_id): Path<CredentialID>,
     shared_state: Extension<SharedAppState>,
 ) -> Result<StatusCode, AppError> {
     tracing::trace!("delete_credentials_handler");
@@ -303,7 +303,7 @@ pub struct Templates {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CredentialIDWithName {
-    id: String,
+    id: CredentialID,
     name: String,
 }
 
@@ -334,7 +334,7 @@ pub async fn get_credentials_template_handler(
                 .map(|c| {
                     let c = c.clone();
                     CredentialIDWithName {
-                        id: c.credential.cred_id().to_string(),
+                        id: c.credential.cred_id().to_owned(),
                         name: c.name,
                     }
                 })
