@@ -15,15 +15,15 @@ impl SqliteSessionStore {
     pub async fn init(&self) -> Result {
         self.db
             .call(|conn| {
-                conn.execute(
+                Ok(conn.execute(
                     r#"create table if not exists sessions (
                          id text primary key not null,
                          value json not null
                        )"#,
                     [],
-                )
+                ))
             })
-            .await?;
+            .await??;
         Ok(())
     }
 }
@@ -32,18 +32,19 @@ impl SqliteSessionStore {
 impl SessionStore for SqliteSessionStore {
     async fn load_session(&self, cookie_value: String) -> Result<Option<Session>> {
         let id = Session::id_from_cookie_value(&cookie_value)?;
-        self.db
+        let value = self
+            .db
             .call(|conn| {
-                let value = conn.query_row(
+                Ok(conn.query_row(
                     r#"select value from sessions where id = ?1"#,
                     (id,),
                     |row| row.get::<_, String>(0),
-                )?;
-
-                let session: Session = serde_json::from_str(&value)?;
-                Ok::<_, anyhow::Error>(session.validate())
+                )?)
             })
-            .await
+            .await?;
+
+        let session: Session = serde_json::from_str(&value)?;
+        Ok(session.validate())
     }
 
     async fn store_session(&self, session: Session) -> Result<Option<String>> {
@@ -52,12 +53,12 @@ impl SessionStore for SqliteSessionStore {
 
         self.db
             .call(|conn| {
-                conn.execute(
+                Ok(conn.execute(
                     r#"insert or replace into sessions (id, value) values(?1, ?2)"#,
                     (session_id, session_str),
-                )
+                ))
             })
-            .await?;
+            .await??;
 
         Ok(session.into_cookie_value())
     }
@@ -65,19 +66,19 @@ impl SessionStore for SqliteSessionStore {
     async fn destroy_session(&self, session: Session) -> Result {
         self.db
             .call(move |conn| {
-                conn.execute(
+                Ok(conn.execute(
                     r#"delete from sessions where id = ?1"#,
                     (session.id().to_string(),),
-                )
+                ))
             })
-            .await?;
+            .await??;
         Ok(())
     }
 
     async fn clear_store(&self) -> Result {
         self.db
-            .call(|conn| conn.execute(r#"delete from sessions"#, []))
-            .await?;
+            .call(|conn| Ok(conn.execute(r#"delete from sessions"#, [])))
+            .await??;
         Ok(())
     }
 }
@@ -96,31 +97,39 @@ mod tests {
         let stored = store.store_session(session).await.unwrap().unwrap();
         let loaded = store.load_session(stored).await.unwrap().unwrap();
         store.destroy_session(loaded).await.unwrap();
-        store
-            .db
-            .call(|conn| {
-                let exists: usize = conn
-                    .query_row("select exists(select id from sessions)", [], |row| {
-                        row.get(0)
-                    })
-                    .unwrap();
-                assert_eq!(exists, 0);
-            })
-            .await;
+        assert_eq!(
+            store
+                .db
+                .call(|conn| {
+                    let exists: usize = conn
+                        .query_row("select exists(select id from sessions)", [], |row| {
+                            row.get(0)
+                        })
+                        .unwrap();
+                    Ok(exists)
+                })
+                .await
+                .unwrap(),
+            0
+        );
 
         let session = Session::new();
         store.store_session(session).await.unwrap().unwrap();
         store.clear_store().await.unwrap();
-        store
-            .db
-            .call(|conn| {
-                let exists: usize = conn
-                    .query_row("select exists(select id from sessions)", [], |row| {
-                        row.get(0)
-                    })
-                    .unwrap();
-                assert_eq!(exists, 0);
-            })
-            .await;
+        assert_eq!(
+            store
+                .db
+                .call(|conn| {
+                    let exists: usize = conn
+                        .query_row("select exists(select id from sessions)", [], |row| {
+                            row.get(0)
+                        })
+                        .unwrap();
+                    Ok(exists)
+                })
+                .await
+                .unwrap(),
+            0
+        );
     }
 }
