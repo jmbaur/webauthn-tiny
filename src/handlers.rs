@@ -1,8 +1,7 @@
 use crate::app::{AppError, SharedAppState};
 use argon2::{password_hash::PasswordHash, Argon2, PasswordVerifier};
-use async_trait::async_trait;
 use axum::{
-    body::{boxed, Empty, Full},
+    body::Body,
     extract::{self, ConnectInfo, FromRequestParts, Path, Query},
     http::{header, request::Parts, HeaderMap, Request, StatusCode, Uri},
     middleware::Next,
@@ -10,17 +9,17 @@ use axum::{
     Extension, Json,
 };
 use axum_macros::debug_handler;
-use axum_sessions::extractors::{ReadableSession, WritableSession};
 use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    convert::Infallible,
     net::{IpAddr, SocketAddr},
     sync::Arc,
 };
+use tower_sessions::Session;
+use tracing::{error, info, trace};
 use webauthn_rs::{prelude::*, Webauthn};
 use webauthn_rs_proto::{
     CreationChallengeResponse, PublicKeyCredential, RegisterPublicKeyCredential,
@@ -35,25 +34,29 @@ const SESSIONKEY_USERNAME: &str = "username";
 
 pub struct LoggedIn(bool);
 
-#[async_trait]
-impl<B> FromRequestParts<B> for LoggedIn
+impl<S> FromRequestParts<S> for LoggedIn
 where
-    B: Send + std::marker::Sync,
+    S: Send + Sync,
 {
-    type Rejection = Infallible;
-    async fn from_request_parts(parts: &mut Parts, state: &B) -> Result<Self, Self::Rejection> {
-        tracing::trace!("LoggedIn extractor");
-        let session = ReadableSession::from_request_parts(parts, state).await?;
+    type Rejection = (axum::http::StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        trace!("LoggedIn extractor");
+        let session = Session::from_request_parts(parts, state).await?;
         Ok(LoggedIn(
-            session.get::<bool>(SESSIONKEY_LOGGEDIN).unwrap_or_default(),
+            session
+                .get::<bool>(SESSIONKEY_LOGGEDIN)
+                .await
+                .unwrap_or_default()
+                .unwrap_or_default(),
         ))
     }
 }
 
-pub async fn require_logged_in<B>(
+pub async fn require_logged_in(
     LoggedIn(logged_in): LoggedIn,
-    req: Request<B>,
-    next: Next<B>,
+    req: Request<Body>,
+    next: Next,
 ) -> Response {
     if logged_in {
         counter!("authorized_requests").increment(1);
@@ -68,24 +71,22 @@ pub async fn require_logged_in<B>(
 /// address from the X-Forwarded-For header to determine if the request is coming from a local
 /// client. If X-Forwarded-For is not present (i.e. the request is not coming from a proxy), then
 /// the direct connection info is used.
-pub async fn allow_only_localhost<B>(
+pub async fn allow_only_localhost(
     connect_info: ConnectInfo<SocketAddr>,
-    req: Request<B>,
-    next: Next<B>,
+    req: Request<Body>,
+    next: Next,
 ) -> Response {
     if req
         .headers()
         .get("x-forwarded-for")
-        .and_then(|x_forwarded_for| {
-            Some(
-                x_forwarded_for
-                    .to_str()
-                    .ok()
-                    .and_then(|s| s.split(',').next())
-                    .and_then(|s| s.trim().parse::<IpAddr>().ok())
-                    .filter(|ip| ip.to_canonical().is_loopback())
-                    .is_some(),
-            )
+        .map(|x_forwarded_for| {
+            x_forwarded_for
+                .to_str()
+                .ok()
+                .and_then(|s| s.split(',').next())
+                .and_then(|s| s.trim().parse::<IpAddr>().ok())
+                .filter(|ip| ip.to_canonical().is_loopback())
+                .is_some()
         })
         .unwrap_or_else(|| connect_info.ip().to_canonical().is_loopback())
     {
@@ -97,13 +98,13 @@ pub async fn allow_only_localhost<B>(
 
 #[debug_handler]
 pub async fn register_start_handler(
-    mut session: WritableSession,
+    session: Session,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Json<CreationChallengeResponse>, AppError> {
-    tracing::trace!("register_start_handler");
+    trace!("register_start_handler");
 
-    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME).await? else {
         return Err(AppError::BadSession);
     };
 
@@ -129,8 +130,11 @@ pub async fn register_start_handler(
         return Err(AppError::WebauthnFailed);
     };
 
-    if let Err(e) = session.insert(SESSIONKEY_PASSKEYREGISTRATION, passkey_reg) {
-        tracing::error!("session.insert: {e}");
+    if let Err(e) = session
+        .insert(SESSIONKEY_PASSKEYREGISTRATION, passkey_reg)
+        .await
+    {
+        error!("session.insert: {e}");
         return Err(AppError::BadSession);
     };
 
@@ -145,20 +149,22 @@ pub struct RegisterEndRequestPayload {
 
 #[debug_handler]
 pub async fn register_end_handler(
-    mut session: WritableSession,
+    session: Session,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
     payload: extract::Json<RegisterEndRequestPayload>,
 ) -> Result<(), AppError> {
-    tracing::trace!("register_end_handler");
+    trace!("register_end_handler");
 
-    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME).await? else {
         return Err(AppError::BadSession);
     };
 
     let app = shared_state.read().await;
 
-    let Some(passkey_reg) = session.get::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION)
+    let Some(passkey_reg) = session
+        .get::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION)
+        .await?
     else {
         return Err(AppError::BadSession);
     };
@@ -166,7 +172,10 @@ pub async fn register_end_handler(
     let Ok(passkey) = webauthn.finish_passkey_registration(&payload.credential, &passkey_reg)
     else {
         counter!("failed_registrations").increment(1);
-        session.remove(SESSIONKEY_PASSKEYREGISTRATION);
+        _ = session
+            .remove::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION)
+            .await?;
+
         return Err(AppError::WebauthnFailed);
     };
 
@@ -177,14 +186,16 @@ pub async fn register_end_handler(
         .iter()
         .any(|c| *c.credential.cred_id() == *passkey.cred_id())
     {
-        tracing::info!("credential already registered");
+        info!("credential already registered");
         return Err(AppError::DuplicateCredential);
     }
 
     app.add_credential(username, payload.name.clone(), &passkey)
         .await?;
 
-    session.remove(SESSIONKEY_PASSKEYREGISTRATION);
+    _ = session
+        .remove::<PasskeyRegistration>(SESSIONKEY_PASSKEYREGISTRATION)
+        .await?;
 
     counter!("successful_registrations").increment(1);
 
@@ -193,13 +204,13 @@ pub async fn register_end_handler(
 
 #[debug_handler]
 pub async fn authenticate_start_handler(
-    mut session: WritableSession,
+    session: Session,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
 ) -> Result<Json<RequestChallengeResponse>, AppError> {
-    tracing::trace!("authenticate_start_handler");
+    trace!("authenticate_start_handler");
 
-    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME).await? else {
         return Err(AppError::BadSession);
     };
 
@@ -210,11 +221,12 @@ pub async fn authenticate_start_handler(
         .await?;
 
     if user.credentials.is_empty() {
-        tracing::info!("user does not have any credentials");
-        if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true) {
-            tracing::error!("session.insert: {e}");
+        info!("user does not have any credentials");
+        if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true).await {
+            error!("session.insert: {e}");
             return Err(AppError::BadSession);
         }
+
         return Err(AppError::NoUserCredentials);
     }
 
@@ -229,8 +241,11 @@ pub async fn authenticate_start_handler(
         return Err(AppError::WebauthnFailed);
     };
 
-    if let Err(e) = session.insert(SESSIONKEY_PASSKEYAUTHENTICATION, passkey_auth) {
-        tracing::error!("session.insert: {e}");
+    if let Err(e) = session
+        .insert(SESSIONKEY_PASSKEYAUTHENTICATION, passkey_auth)
+        .await
+    {
+        error!("session.insert: {e}");
         return Err(AppError::BadSession);
     }
 
@@ -239,15 +254,16 @@ pub async fn authenticate_start_handler(
 
 #[debug_handler]
 pub async fn authenticate_end_handler(
-    mut session: WritableSession,
+    session: Session,
     shared_state: Extension<SharedAppState>,
     webauthn: Extension<Arc<Webauthn>>,
     payload: extract::Json<PublicKeyCredential>,
 ) -> Result<(), AppError> {
-    tracing::trace!("authenticate_end_handler");
+    trace!("authenticate_end_handler");
 
-    let Some(passkey_authentication) =
-        session.get::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION)
+    let Some(passkey_authentication) = session
+        .get::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION)
+        .await?
     else {
         return Err(AppError::BadSession);
     };
@@ -264,9 +280,12 @@ pub async fn authenticate_end_handler(
         state.update_credential(auth_result).await?;
     }
 
-    session.remove(SESSIONKEY_PASSKEYAUTHENTICATION);
-    if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true) {
-        tracing::error!("session.insert: {e}");
+    _ = session
+        .remove::<PasskeyAuthentication>(SESSIONKEY_PASSKEYAUTHENTICATION)
+        .await?;
+
+    if let Err(e) = session.insert(SESSIONKEY_LOGGEDIN, true).await {
+        error!("session.insert: {e}");
         return Err(AppError::BadSession);
     }
 
@@ -285,25 +304,27 @@ pub async fn delete_credentials_api_handler(
     Path(cred_id): Path<CredentialID>,
     shared_state: Extension<SharedAppState>,
 ) -> Result<StatusCode, AppError> {
-    tracing::trace!("delete_credentials_handler");
+    trace!("delete_credentials_handler");
 
     let app = shared_state.read().await;
     app.delete_credential(cred_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-const MAIN_JS: &str = include_str!("./main.js");
-
 pub async fn root_handler(uri: Uri) -> Response {
     match uri.path() {
         "/" => Redirect::permanent("/credentials").into_response(),
+        "/favicon.ico" => Response::builder()
+            .header(header::CONTENT_TYPE, "image/svg+xml")
+            .body(Body::from(include_bytes!("./favicon.svg").as_slice()))
+            .expect("could not build response"),
         "/main.js" => Response::builder()
             .header(header::CONTENT_TYPE, "text/javascript")
-            .body(boxed(MAIN_JS.to_string()))
+            .body(Body::from(include_bytes!("./main.js").as_slice()))
             .expect("could not build response"),
         _ => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(boxed(Full::from("404")))
+            .body(Body::empty())
             .expect("could not build response"),
     }
 }
@@ -322,51 +343,44 @@ pub struct CredentialIDWithName {
 #[debug_handler]
 pub async fn get_credentials_template_handler(
     LoggedIn(logged_in): LoggedIn,
-    session: ReadableSession,
+    session: Session,
     templates: Extension<Arc<Templates>>,
     shared_state: Extension<SharedAppState>,
-) -> Response {
-    tracing::trace!("get_credentials_template_handler");
+) -> Result<Response, AppError> {
+    trace!("get_credentials_template_handler");
 
     let app = shared_state.read().await;
 
     if !logged_in {
-        return Redirect::temporary("/authenticate?redirect_url=/credentials").into_response();
+        return Ok(Redirect::temporary("/authenticate?redirect_url=/credentials").into_response());
     }
 
-    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME) else {
-        return AppError::BadSession.into_response();
+    let Some(username) = session.get::<String>(SESSIONKEY_USERNAME).await? else {
+        return Err(AppError::BadSession);
     };
 
-    return match app.get_user_with_credentials(username).await {
-        Ok(user) => {
-            let credentials: Vec<CredentialIDWithName> = user
-                .credentials
-                .iter()
-                .map(|c| {
-                    let c = c.clone();
-                    CredentialIDWithName {
-                        id: c.credential.cred_id().to_owned(),
-                        name: c.name,
-                    }
-                })
-                .collect();
+    let user = app.get_user_with_credentials(username).await?;
+    let credentials: Vec<CredentialIDWithName> = user
+        .credentials
+        .iter()
+        .map(|c| {
+            let c = c.clone();
+            CredentialIDWithName {
+                id: c.credential.cred_id().to_owned(),
+                name: c.name,
+            }
+        })
+        .collect();
 
-            let tmpl_data = liquid::object!({ "credentials": credentials });
+    let tmpl_data = liquid::object!({ "credentials": credentials });
 
-            return match templates.credentials_template.render(&tmpl_data) {
-                Ok(html) => Html(finish_html(html)).into_response(),
-                Err(e) => {
-                    tracing::error!("templates.credentials_template.render: {e}");
-                    AppError::UnknownError.into_response()
-                }
-            };
-        }
+    match templates.credentials_template.render(&tmpl_data) {
+        Ok(html) => Ok(Html(finish_html(html)).into_response()),
         Err(e) => {
-            tracing::error!("app.get_user_with_credentials: {e}");
-            e.into_response()
+            error!("templates.credentials_template.render: {e}");
+            Err(AppError::UnknownError)
         }
-    };
+    }
 }
 
 #[derive(Deserialize)]
@@ -379,27 +393,27 @@ pub async fn get_authenticate_template_handler(
     LoggedIn(logged_in): LoggedIn,
     params: Query<GetAuthenticateQueryParams>,
     headers: HeaderMap,
-    mut session: WritableSession,
+    session: Session,
     templates: Extension<Arc<Templates>>,
     webauthn: Extension<Arc<Webauthn>>,
     passwords: Extension<HashMap<String, String>>,
-) -> Response {
-    tracing::trace!("get_authenticate_template_handler");
+) -> Result<Response, AppError> {
+    trace!("get_authenticate_template_handler");
 
     if logged_in {
-        if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL) {
-            session.remove(SESSIONKEY_REDIRECTURL);
-            return Redirect::temporary(&redirect_url).into_response();
+        if let Some(redirect_url) = session.get::<String>(SESSIONKEY_REDIRECTURL).await? {
+            _ = session.remove::<String>(SESSIONKEY_REDIRECTURL).await?;
+            return Ok(Redirect::temporary(&redirect_url).into_response());
         }
     }
 
     let needs_basic_auth_response = Response::builder()
         .header(header::WWW_AUTHENTICATE, "Basic")
         .status(StatusCode::UNAUTHORIZED)
-        .body(boxed(Empty::new()))
+        .body(Body::empty())
         .expect("could not build response");
     let Some(authorization) = headers.get("Authorization") else {
-        return needs_basic_auth_response;
+        return Ok(needs_basic_auth_response);
     };
 
     let Some((username, password)) = authorization
@@ -418,7 +432,7 @@ pub async fn get_authenticate_template_handler(
                 })
         })
     else {
-        return needs_basic_auth_response;
+        return Ok(needs_basic_auth_response);
     };
 
     if passwords
@@ -434,41 +448,37 @@ pub async fn get_authenticate_template_handler(
         })
         .is_none()
     {
-        return (
+        return Ok((
             StatusCode::UNAUTHORIZED,
             Html(finish_html(String::from(
                 "<main><p>Unauthorized</p></main>",
             ))),
         )
-            .into_response();
+            .into_response());
     }
 
-    if let Err(e) = session.insert(SESSIONKEY_USERNAME, username.clone()) {
-        tracing::error!("session.insert: {e}");
-        return AppError::BadSession.into_response();
-    }
+    session
+        .insert(SESSIONKEY_USERNAME, username.clone())
+        .await?;
 
     if !logged_in {
-        if let Some(app_error) = params.redirect_url.as_ref().and_then(|redirect_url| {
-            get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
-                .ok()
-                .and_then(|accepted_redirect_url| {
-                    session
-                        .insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url)
-                        .err()
-                        .and(Some(AppError::BadSession))
-                })
-        }) {
-            return app_error.into_response();
+        if let Some(redirect_url) = params.redirect_url.as_ref() {
+            if let Ok(accepted_redirect_url) =
+                get_redirect_url(redirect_url.to_string(), webauthn.get_allowed_origins())
+            {
+                session
+                    .insert(SESSIONKEY_REDIRECTURL, accepted_redirect_url)
+                    .await?;
+            }
         }
     }
 
     let tmpl_data = liquid::object!({ "username": username, "logged_in": logged_in });
     match templates.authenticate_template.render(&tmpl_data) {
-        Ok(html) => Html(finish_html(html)).into_response(),
+        Ok(html) => Ok(Html(finish_html(html)).into_response()),
         Err(e) => {
-            tracing::error!("parsed_template.render: {e}");
-            AppError::UnknownError.into_response()
+            error!("parsed_template.render: {e}");
+            Err(AppError::UnknownError)
         }
     }
 }
@@ -477,7 +487,6 @@ const TOP_HTML: &str = r#"
 <!DOCTYPE html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAABp1BMVEUAAAC7ZEnAaE3BaE3AaE7AaE7AZ07AZ07AaEuqVVXAZ03AaU7AaE7BaE7AaE7AZ06/X0+iubmouMCotcKot7+jtr+qVQDAaE3BZ06ZZjO/aE3DaUv///+pt8Cpt8KquMGpt8Gpt8KqtsHAaVDBZ07DaUvAZ06ptsKpuMHAa1LAaE7BaEzAZUyotsHBaE3AaU3AaE7AaE6puMGpt8Kpt8Cotb6qtsCpuMKpuMHAaE7/AACpt7+puMKls8Glsr+/b1bJXUOpt8GquMGotsDBaE7CYUiqtL+otsHAaE3/fwCntsGotcHBZ02/aE2qtsKqt8DEYk7AaE7AZ0vAZ06pqbPAaE7/qjHzrEb4qzr/qjL8rDbBaE67ZkT/qi//qzLAZ03BZUr+rDLBaE7+qzLBaE7AaE3BaU7BaE7BaE+/Z0zAaE3AaU/BZkzBaE3AaE7+rDLAaE3+rDK/aE3+qy7/rDLAaE7+rDH9qTPGbUvBaE7AaE7EaE7BaU+quMKsrrS0kIi6e2q4gnTqrlTrrlPrrVHdiEHCak7/rDP1oTbPeUfchkLljz3///9akrvWAAAAfHRSTlMAJo7S9fndoD0Dh/rk1/6sEBZBUEQcA6uzBYERAVbF/f7PY4JbIrMVu/6ja0nYy7v9sLz7pDtRmPbwAVnnNijxE8r6NdsVGKLyAkZTebJUORr2Snsb0CSx0sXLqQ8w8eI6vMb4w3Pk4/uFxfVX7zH8wdG1Uv3E0tuz980nD8+cyQAAAAFiS0dEHJwEQQcAAAFGSURBVDjLpZBlUwMxEIYXisvhTqG4U9zd3Z1Ci7u2eIIVOORPk9wlQHp0MgPvl53Z55ndZAGM8fE1+fkHBAbB7wkOCUUoLFxBSkSkAKKiY2LjAOITEEKJSZBMiinli6aa09IxxpaMzCwCUDZADq25nOflY5bbAgoKAYpoVYrZ9BLO8R3SUmot02q5Pr+CkMoqc3VNbd09ElLfQIVGwpuaNbelVRSUNtptx7ijk72mSxRQN+n1WDDu5c+1iryvn/QGyIZBLgyJwjDtjRBhlAtj44IwYRBg8ifXDyUKUw/ffFo79czso9s9N8+z8PT8wr64aKN8aVn1zOsb5XaHPnJFNeadCqts55pMUP8srEsEZUMibIJE2JIJ2zv//sWuRNjblwgHh0w48rbimAkn3oRTJjhdRuGD8DMbP4Tz3HOL6+Ly6vqG4U+ir1fMK9R+pgAAAABJRU5ErkJggg==">
   <script type="module" src="/main.js" defer></script>
   <title>WebAuthnTiny</title>
 </head>

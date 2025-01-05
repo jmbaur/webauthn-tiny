@@ -17,7 +17,7 @@ pub struct CredentialState {
     pub credentials: Vec<Passkey>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub enum AppError {
     MissingUserInfo,
     UserNotFound,
@@ -30,6 +30,7 @@ pub enum AppError {
     EntityNotFound,
     BadSession,
     WebauthnFailed,
+    #[default]
     UnknownError,
     NoUserCredentials,
 }
@@ -53,12 +54,6 @@ impl Display for AppError {
 }
 
 impl std::error::Error for AppError {}
-
-impl Default for AppError {
-    fn default() -> Self {
-        AppError::UnknownError
-    }
-}
 
 #[derive(Serialize)]
 struct AppErrorResponse {
@@ -87,6 +82,12 @@ impl From<AppError> for StatusCode {
             AppError::NoUserCredentials => StatusCode::NO_CONTENT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
+    }
+}
+
+impl From<tower_sessions::session::Error> for AppError {
+    fn from(_error: tower_sessions::session::Error) -> Self {
+        AppError::BadSession
     }
 }
 
@@ -155,8 +156,7 @@ impl App {
     }
 
     pub async fn init(&self) -> Result<(), AppError> {
-        _ = self
-            .db
+        self.db
             .call(|conn| {
                 conn.execute(
                     r#"create table if not exists users (
@@ -208,7 +208,6 @@ impl App {
                             row.get::<_, Option<String>>(3)?,
                         ))
                     })?
-                    .into_iter()
                     .filter_map(|v| if let Ok(v_ok) = v { Some(v_ok) } else { None })
                     .fold(Vec::new(), |mut accumulator, current| {
                         accumulator.push(current);

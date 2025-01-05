@@ -6,9 +6,8 @@ use app::App;
 use axum::{
     middleware,
     routing::{delete, get},
-    Extension, Router, Server,
+    Extension, Router,
 };
-use axum_sessions::{PersistencePolicy, SessionLayer};
 use clap::Parser;
 use handlers::{
     allow_only_localhost, authenticate_end_handler, authenticate_start_handler,
@@ -21,8 +20,9 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::{collections::HashMap, env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
-use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
+use tower_sessions::SessionManagerLayer;
+use tracing::debug;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use webauthn_rs::{prelude::Url, WebauthnBuilder};
 
@@ -98,12 +98,11 @@ async fn main() -> anyhow::Result<()> {
 
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
-    let session_layer = SessionLayer::new(
-        store,
-        std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
-    )
-    .with_persistence_policy(PersistencePolicy::ChangedOnly)
-    .with_cookie_domain(&cli.rp_id);
+
+    // TODO(jared): std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
+    let session_layer = SessionManagerLayer::new(store)
+        .with_always_save(false)
+        .with_domain(cli.rp_id);
 
     let app = App::new(db);
     app.init().await?;
@@ -143,25 +142,26 @@ async fn main() -> anyhow::Result<()> {
             get(authenticate_start_handler).post(authenticate_end_handler),
         )
         .route(
-            "/api/credentials/:cred_id",
+            "/api/credentials/{cred_id}",
             delete(delete_credentials_api_handler).layer(middleware::from_fn(require_logged_in)),
         )
         .route("/authenticate", get(get_authenticate_template_handler))
         .route("/credentials", get(get_credentials_template_handler))
         .fallback(root_handler)
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(session_layer)
-                .layer(Extension(Arc::new(RwLock::new(app))))
-                .layer(Extension(Arc::new(webauthn)))
-                .layer(Extension(Arc::new(templates)))
-                .layer(Extension(Arc::new(prometheus_handle)))
-                .layer(Extension(read_password_file(cli.password_file)?)),
-        );
+        .layer(TraceLayer::new_for_http())
+        .layer(session_layer)
+        .layer(Extension(Arc::new(RwLock::new(app))))
+        .layer(Extension(Arc::new(webauthn)))
+        .layer(Extension(Arc::new(templates)))
+        .layer(Extension(Arc::new(prometheus_handle)))
+        .layer(Extension(read_password_file(cli.password_file)?))
+        .into_make_service_with_connect_info::<SocketAddr>();
 
-    tracing::debug!("listening on {}", cli.address);
-    Ok(Server::bind(&cli.address)
-        .serve(router.into_make_service_with_connect_info::<SocketAddr>())
-        .await?)
+    debug!("listening on {}", cli.address);
+
+    let listener = tokio::net::TcpListener::bind(&cli.address).await?;
+
+    axum::serve(listener, router).await?;
+
+    Ok(())
 }

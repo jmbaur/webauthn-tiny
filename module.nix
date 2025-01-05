@@ -138,7 +138,8 @@ in
               proxy_set_header Content-Length "";
             '';
           };
-          locations."@error401".return = "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
+          locations."@error401".return =
+            "307 $scheme://${cfg.nginx.virtualHost}/authenticate?redirect_url=https://$http_host";
         })
         // {
           ${cfg.nginx.virtualHost} = {
@@ -167,7 +168,7 @@ in
         ];
         ExecStart = escapeShellArgs (
           [
-            "${pkgs.webauthn-tiny}/bin/webauthn-tiny"
+            (lib.getExe pkgs.webauthn-tiny)
             "--rp-id=${cfg.relyingParty.id}"
             "--rp-origin=${cfg.relyingParty.origin}"
             "--password-file=\${CREDENTIALS_DIRECTORY}/password-file"
