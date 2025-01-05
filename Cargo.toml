@@ -13,7 +13,7 @@ axum-sessions = "0.4"
 base64 = "0.22"
 clap = { version = "4", features = ["std", "derive", "env"] }
 libsqlite3-sys = "0.25"
-liquid = "0.26.9"
+liquid = "0.26"
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
 rusqlite = "0.28"
