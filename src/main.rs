@@ -21,7 +21,7 @@ use std::{collections::HashMap, env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use tower_http::trace::TraceLayer;
-use tower_sessions::SessionManagerLayer;
+use tower_sessions::{cookie::Key, SessionManagerLayer};
 use tracing::debug;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use webauthn_rs::{prelude::Url, WebauthnBuilder};
@@ -99,8 +99,10 @@ async fn main() -> anyhow::Result<()> {
     let store = session::SqliteSessionStore::new(db.clone());
     store.init().await?;
 
-    // TODO(jared): std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
     let session_layer = SessionManagerLayer::new(store)
+        .with_private(Key::try_from(
+            std::fs::read_to_string(cli.session_secret_file)?.as_bytes(),
+        )?)
         .with_always_save(false)
         .with_domain(cli.rp_id);
 

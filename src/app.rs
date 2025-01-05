@@ -294,7 +294,6 @@ impl App {
         auth_result: AuthenticationResult,
     ) -> Result<(), AppError> {
         let cred_id = serde_json::to_string(auth_result.cred_id())?;
-        let cred_id_ = cred_id.clone(); // TODO(jared): don't do this
 
         let cred_json = self
             .db
@@ -302,18 +301,20 @@ impl App {
                 Ok(conn.query_row(
                     r#"select value from credentials
                        where value->'$.cred.cred_id' = ?1"#,
-                    (cred_id_,),
+                    (cred_id,),
                     |row| row.get::<_, String>(0),
                 ))
             })
             .await??;
 
-        let mut credential = serde_json::from_str::<Passkey>(&cred_json)?;
-        if credential.update_credential(&auth_result).is_none() {
+        let mut passkey = serde_json::from_str::<Passkey>(&cred_json)?;
+        if passkey.update_credential(&auth_result).is_none() {
             return Err(AppError::MismatchingCredential);
         }
 
-        let cred_json = serde_json::to_string(&credential)?;
+        let cred_id = serde_json::to_string(passkey.cred_id())?;
+
+        let cred_json = serde_json::to_string(&passkey)?;
 
         _ = self
             .db

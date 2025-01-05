@@ -26,7 +26,7 @@ build:
 update: update_usage
 	cargo update
 
-run:
+run port="8080":
 	#!/usr/bin/env bash
 	export STATE_DIRECTORY={{justfile_directory()}}/state
 	mkdir -p $STATE_DIRECTORY
@@ -34,4 +34,4 @@ run:
 	[[ -f $password_file ]] || echo user:$(printf "password" | argon2 $(openssl rand -hex 16) -id -e) > $password_file
 	session_secret_file=$STATE_DIRECTORY/session_secret
 	[[ -f $session_secret_file ]] || openssl rand -hex 64 > $session_secret_file
-	cargo watch --exec "run -- --rp-id=localhost --rp-origin=http://localhost:8080 --password-file=$password_file --session-secret-file=$session_secret_file"
+	cargo watch --exec "run -- --address=[::]:{{port}} --rp-id=localhost --rp-origin=http://localhost:{{port}} --password-file=$password_file --session-secret-file=$session_secret_file"
