@@ -202,7 +202,7 @@ impl App {
                             row.get::<_, Option<String>>(3)?,
                         ))
                     })?
-                    .filter_map(|v| if let Ok(v_ok) = v { Some(v_ok) } else { None })
+                    .filter_map(|v| v.ok())
                     .fold(Vec::new(), |mut accumulator, current| {
                         accumulator.push(current);
                         accumulator
@@ -217,12 +217,10 @@ impl App {
                     user.id = id;
                 }
 
-                if u.2.is_some() && u.3.is_some() {
-                    if let Ok(passkey) =
-                        serde_json::from_str::<Passkey>(&u.3.expect("is_some guard"))
-                    {
+                if let (Some(u2), Some(u3)) = (u.2, u.3) {
+                    if let Ok(passkey) = serde_json::from_str::<Passkey>(&u3) {
                         user.credentials.push(CredentialWithName {
-                            name: u.2.expect("is_some guard"),
+                            name: u2,
                             credential: passkey,
                         });
                     }
