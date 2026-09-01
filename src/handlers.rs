@@ -8,7 +8,6 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
     Extension, Json,
 };
-use axum_macros::debug_handler;
 use base64::{engine::general_purpose, Engine as _};
 use liquid::Template;
 use metrics::counter;
@@ -96,7 +95,6 @@ pub async fn allow_only_localhost(
     }
 }
 
-#[debug_handler]
 pub async fn register_start_handler(
     session: Session,
     shared_state: Extension<SharedAppState>,
@@ -147,7 +145,6 @@ pub struct RegisterEndRequestPayload {
     credential: RegisterPublicKeyCredential,
 }
 
-#[debug_handler]
 pub async fn register_end_handler(
     session: Session,
     shared_state: Extension<SharedAppState>,
@@ -202,7 +199,6 @@ pub async fn register_end_handler(
     Ok(())
 }
 
-#[debug_handler]
 pub async fn authenticate_start_handler(
     session: Session,
     shared_state: Extension<SharedAppState>,
@@ -252,7 +248,6 @@ pub async fn authenticate_start_handler(
     Ok(Json(req_chal))
 }
 
-#[debug_handler]
 pub async fn authenticate_end_handler(
     session: Session,
     shared_state: Extension<SharedAppState>,
@@ -294,12 +289,6 @@ pub async fn authenticate_end_handler(
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct GetCredentialsResponsePayload {
-    pub data: Vec<CredentialIDWithName>,
-}
-
-#[debug_handler]
 pub async fn delete_credentials_api_handler(
     Path(cred_id): Path<CredentialID>,
     shared_state: Extension<SharedAppState>,
@@ -340,7 +329,6 @@ pub struct CredentialIDWithName {
     name: String,
 }
 
-#[debug_handler]
 pub async fn get_credentials_template_handler(
     LoggedIn(logged_in): LoggedIn,
     session: Session,
@@ -388,7 +376,6 @@ pub struct GetAuthenticateQueryParams {
     pub redirect_url: Option<String>,
 }
 
-#[debug_handler]
 pub async fn get_authenticate_template_handler(
     LoggedIn(logged_in): LoggedIn,
     params: Query<GetAuthenticateQueryParams>,

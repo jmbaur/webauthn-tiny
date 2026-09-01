@@ -5,17 +5,11 @@ use axum::{
 };
 use libsqlite3_sys::ErrorCode::ConstraintViolation;
 use rusqlite::Error::{QueryReturnedNoRows, SqliteFailure};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 use webauthn_rs::prelude::{AuthenticationResult, CredentialID, Passkey, Uuid};
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct CredentialState {
-    pub id: Uuid,
-    pub credentials: Vec<Passkey>,
-}
 
 #[derive(Debug, Copy, Clone, Default)]
 pub enum AppError {

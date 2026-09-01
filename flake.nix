@@ -6,31 +6,37 @@
     nixpkgs.url = "nixpkgs/nixos-unstable";
   };
   outputs =
+    inputs:
+    let
+      inherit (inputs.nixpkgs.lib)
+        const
+        genAttrs
+        mapAttrs
+        ;
+    in
     {
-      self,
-      nixpkgs,
-      git-hooks,
-    }:
-    {
-      overlays.default = (_: prev: { webauthn-tiny = prev.callPackage ./package.nix { }; });
+      overlays.default = _: prev: { webauthn-tiny = prev.callPackage ./package.nix { }; };
+      checks = mapAttrs (const (pkgs: {
+        default = pkgs.webauthn-tiny;
+      })) inputs.self.legacyPackages;
       nixosModules.default = {
-        nixpkgs.overlays = [ self.overlays.default ];
+        nixpkgs.overlays = [ inputs.self.overlays.default ];
         imports = [ ./module.nix ];
       };
       legacyPackages =
-        nixpkgs.lib.genAttrs
+        genAttrs
           [
             "aarch64-linux"
             "x86_64-linux"
           ]
           (
             system:
-            import nixpkgs {
+            import inputs.nixpkgs {
               inherit system;
-              overlays = [ self.overlays.default ];
+              overlays = [ inputs.self.overlays.default ];
             }
           );
-      devShells = nixpkgs.lib.mapAttrs (system: pkgs: {
+      devShells = mapAttrs (system: pkgs: {
         default = pkgs.mkShell {
           inputsFrom = [ pkgs.webauthn-tiny ];
           packages = [
@@ -39,17 +45,18 @@
             pkgs.libargon2
           ];
           inherit
-            (git-hooks.lib.${system}.run {
+            (inputs.git-hooks.lib.${system}.run {
               src = ./.;
               hooks = {
                 deadnix.enable = true;
-                nixfmt-rfc-style.enable = true;
+                nixfmt.enable = true;
                 rustfmt.enable = true;
+                statix.enable = true;
               };
             })
             shellHook
             ;
         };
-      }) self.legacyPackages;
+      }) inputs.self.legacyPackages;
     };
 }
